@@ -1,0 +1,29 @@
+# Credenciais PJE (NUNCA versionar)
+pje_session.json
+pje_session_backup.json
+
+# Dependencias
+node_modules/
+
+# PDFs originais (grandes demais para git)
+*.pdf
+
+# Textos extraidos (gerados pelo OCR)
+data/**/*.txt
+
+# Artefatos temporarios
+output/
+*.zip
+
+# Dados de processos (podem conter informacoes sensiveis)
+processos*.json
+teste_processos.json
+indice_documentos.json
+
+# IDE e sistema
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
