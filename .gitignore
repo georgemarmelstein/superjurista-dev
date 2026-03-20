@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# PDFs (grandes demais para git)
+*.pdf
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
