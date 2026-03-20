@@ -1,0 +1,19 @@
+{
+  "name": "superjurista-dev",
+  "version": "1.0.0",
+  "description": "Meta-ferramentas para criar sistemas agenticos judiciais: agentes, orquestradores, skills, teams e scaffold completo do SuperJurista",
+  "author": {
+    "name": "George Marmelstein",
+    "email": "george@superjurista.com"
+  },
+  "repository": "https://github.com/georgemarmelstein/superjurista-dev",
+  "license": "MIT",
+  "keywords": [
+    "judicial",
+    "legal",
+    "agents",
+    "pipelines",
+    "jurisprudencia",
+    "superjurista"
+  ]
+}
