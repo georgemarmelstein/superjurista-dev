@@ -1,55 +1,152 @@
 # superjurista-dev
 
-Plugin de meta-ferramentas para criar e customizar sistemas agênticos judiciais com Claude Code. Inclui ferramentas para criar agentes, orquestradores, skills, teams e um scaffold completo do sistema SuperJurista -- um sistema de inteligência aumentada para processamento de processos judiciais, construído com arquitetura de pipelines determinísticos.
+Plugin de meta-ferramentas para criar e customizar sistemas agenticos judiciais com Claude Code. Inclui ferramentas para criar agentes, orquestradores, skills, teams e um scaffold completo do sistema SuperJurista -- um sistema de inteligencia aumentada para processamento de processos judiciais, construido com arquitetura de pipelines deterministicos.
 
-## Instalação
+## Instalacao
 
-### 1. Via GitHub (recomendado)
+### Opcao 1: Dentro de uma sessao do Claude Code (recomendado)
+
+Tres comandos e o sistema inteiro esta funcionando:
 
 ```
-/plugin marketplace add georgemarmelstein/superjurista-dev
-/plugin install superjurista-dev@georgemarmelstein/superjurista-dev
+/plugin marketplace add georgemarmelstein/superjurista-marketplace
+/plugin install superjurista-dev@georgemarmelstein-superjurista-marketplace
+/instalar-superjurista
 ```
 
-### 2. Para desenvolvimento local
+**Passo a passo:**
+
+1. **Adicionar o marketplace** -- registra o repositorio de plugins do SuperJurista:
+   ```
+   /plugin marketplace add georgemarmelstein/superjurista-marketplace
+   ```
+
+2. **Instalar o plugin** -- baixa as meta-ferramentas e o scaffold:
+   ```
+   /plugin install superjurista-dev@georgemarmelstein-superjurista-marketplace
+   ```
+
+3. **Instalar o sistema no projeto** -- copia agentes, pipelines, skills e MCPs para `.claude/`:
+   ```
+   /instalar-superjurista
+   ```
+
+### Opcao 2: Via interface interativa
+
+Digite `/plugin` para abrir o gerenciador visual com abas (Discover, Installed, Marketplaces, Errors). Navegue com Tab/Shift+Tab.
+
+### Opcao 3: Desenvolvimento local
 
 ```bash
 git clone https://github.com/georgemarmelstein/superjurista-dev.git
 claude --plugin-dir ./superjurista-dev
 ```
 
+Depois, dentro da sessao: `/instalar-superjurista`
+
+## Gerenciamento do plugin
+
+| Acao | Comando |
+|------|---------|
+| Abrir gerenciador interativo | `/plugin` |
+| Adicionar marketplace | `/plugin marketplace add owner/repo` |
+| Instalar plugin | `/plugin install plugin@marketplace` |
+| Listar instalados | `/plugin` > aba Installed |
+| Desinstalar | `/plugin uninstall superjurista-dev@georgemarmelstein-superjurista-marketplace` |
+| Desativar (sem remover) | `/plugin disable superjurista-dev@georgemarmelstein-superjurista-marketplace` |
+| Reativar | `/plugin enable superjurista-dev@georgemarmelstein-superjurista-marketplace` |
+| Recarregar apos instalar | `/reload-plugins` |
+
+### Escopo da instalacao
+
+Ao instalar, voce pode escolher o escopo:
+
+- **user** -- funciona em todos os seus projetos (padrao)
+- **project** -- salva em `.claude/settings.json` do repo (todos que clonarem terao o plugin)
+- **local** -- so voce, so neste repositorio
+
+### Pre-requisito
+
+Versao minima do Claude Code: **1.0.33+**. Se `/plugin` nao aparecer:
+
+```bash
+npm update -g @anthropic-ai/claude-code
+```
+
 ## Comandos
 
-| Comando | Descrição |
+| Comando | Descricao |
 |---------|-----------|
 | `/instalar-superjurista` | Instala o sistema SuperJurista completo no projeto atual |
 | `/criar-agente` | Cria agentes modulares seguindo as SPECs v2.0 |
-| `/criar-orquestrador` | Cria orquestradores (commands) com injeção de contexto |
+| `/criar-orquestrador` | Cria orquestradores (commands) com injecao de contexto |
 | `/criar-skill` | Cria skills com TDD e CSO (Claude Search Optimization) |
 | `/criar-team` | Cria Agent Teams (paralelo ou debate) |
 | `/planejar-sistema` | Gera blueprint arquitetural antes de criar artefatos |
 
 ## Skills
 
-- **criar-skill**: Workflow TDD para criação de skills -- garante que a skill ensina o comportamento correto ao Claude, com testes de conformidade e otimização para busca interna.
-- **criar-mcp-precedente**: Guia para criar servidores MCP de jurisprudência com scraping de tribunais, incluindo padrões de extração e configuração de endpoints.
+- **criar-skill**: Workflow TDD para criacao de skills -- garante que a skill ensina o comportamento correto ao Claude, com testes de conformidade e otimizacao para busca interna.
+- **criar-mcp-precedente**: Guia para criar servidores MCP de jurisprudencia com scraping de tribunais, incluindo padroes de extracao e configuracao de endpoints.
 - **criar-pje-download**: Cria skills de download do PJE para qualquer tribunal via engenharia reversa de arquivos HAR -- identifica endpoints, cookies, headers e gera scripts Python parametrizados.
 
 ## O que o /instalar-superjurista cria
 
 O comando `/instalar-superjurista` gera um sistema judicial completo no projeto atual:
 
-- **16 pipelines e comandos** para processamento judicial (sentença, embargos, pesquisa, revisão, etc.)
-- **~52 agentes especializados** em 7 categorias (extração, análise, pesquisa, redação, revisão, lista-trf, tribunal)
-- **6 skills de domínio** (download PJE, conversão PDF, análise probatória, captura de sessão, etc.)
+- **16 pipelines e comandos** para processamento judicial (sentenca, embargos, pesquisa, revisao, etc.)
+- **~52 agentes especializados** em 7 categorias (extracao, analise, pesquisa, redacao, revisao, lista-trf, tribunal)
+- **6 skills de dominio** (download PJE, conversao PDF, analise probatoria, captura de sessao, etc.)
 - **2 servidores MCP** (TJSC eProc, TCU)
 - **Estrutura de dados pronta** (`data/sentenca/`, `data/decisao/`)
 - **CLAUDE.md e README.md** configurados para o projeto
 
+### Estrutura gerada
+
+```
+projeto/
+├── .claude/
+│   ├── commands/           # 16 pipelines e comandos
+│   ├── agents/
+│   │   ├── analise/        # Marmelstein, Haack, Pearl, embargos, probatoria
+│   │   ├── extracao/       # Linha do tempo, relator, conversor
+│   │   ├── lista-trf/      # 9 agentes para listas de julgamento
+│   │   ├── pesquisa/       # BNP, CJF, JULIA, consolidador
+│   │   ├── redacao/        # Redator de minutas
+│   │   ├── revisao/        # Verificadores (calculos, honorarios, fontes)
+│   │   └── tribunal/       # Acusador, defensor, juiz mediador
+│   ├── skills/
+│   │   ├── pje-download/   # API REST do PJE (10 scripts Python)
+│   │   ├── converter-pdf/  # Conversao PDF para TXT com OCR hibrido
+│   │   ├── analise-probatoria/  # Checklists por tipo de prova
+│   │   ├── capturar-sessao-pje/ # Captura sessao via Chrome MCP
+│   │   ├── analisador-erro-medico/ # Analise de erro medico
+│   │   └── fork-terminal/  # Execucao paralela em terminais
+│   └── mcp-servers/
+│       ├── tjsc-eproc/     # Jurisprudencia TJSC
+│       └── tcu-jurisprudencia/ # Jurisprudencia TCU
+├── data/
+│   ├── sentenca/           # Processos para sentenca
+│   └── decisao/            # Processos para decisao
+├── CLAUDE.md               # Configuracao do projeto
+└── README.md               # Documentacao do projeto
+```
+
 ## Framework
 
-O sistema baseia-se no framework v2.7 de orquestração agêntica com padrão "Orquestrador Cego" e injeção de contexto. Neste padrão, commands (orquestradores) delegam tarefas via Task tool para subagentes que possuem contexto isolado -- cada agente lê seu próprio prompt e recebe apenas os caminhos de workspace necessários. Templates e referências completas estão disponíveis em `spec/`.
+O sistema baseia-se no framework v2.7 de orquestracao agentica com padrao "Orquestrador Cego" e injecao de contexto. Neste padrao, commands (orquestradores) delegam tarefas via Task tool para subagentes que possuem contexto isolado -- cada agente le seu proprio prompt e recebe apenas os caminhos de workspace necessarios. Templates e referencias completas estao disponiveis em `spec/`.
 
-## Licença
+## Dependencias
+
+**Python 3.8+:**
+```bash
+pip install requests beautifulsoup4 pdfplumber PyPDF2 pdf2image pytesseract
+```
+
+**Sistema (para OCR):**
+- Tesseract OCR com pacote de idioma portugues
+- Poppler (Windows: extrair para `~/poppler/`)
+
+## Licenca
 
 [MIT](LICENSE)
