@@ -4,20 +4,14 @@ Plugin de meta-ferramentas para criar e customizar sistemas agênticos judiciais
 
 ## Instalação
 
-### 1. Via marketplace (quando disponível)
+### 1. Via GitHub (recomendado)
 
 ```
-/plugin marketplace add georgemarmelstein/superjurista-marketplace
-/plugin install superjurista-dev@superjurista-marketplace
+/plugin marketplace add georgemarmelstein/superjurista-dev
+/plugin install superjurista-dev@georgemarmelstein/superjurista-dev
 ```
 
-### 2. Direto do GitHub
-
-```
-/plugin install superjurista-dev@github:georgemarmelstein/superjurista-dev
-```
-
-### 3. Para desenvolvimento local
+### 2. Para desenvolvimento local
 
 ```bash
 git clone https://github.com/georgemarmelstein/superjurista-dev.git
@@ -39,6 +33,7 @@ claude --plugin-dir ./superjurista-dev
 
 - **criar-skill**: Workflow TDD para criação de skills -- garante que a skill ensina o comportamento correto ao Claude, com testes de conformidade e otimização para busca interna.
 - **criar-mcp-precedente**: Guia para criar servidores MCP de jurisprudência com scraping de tribunais, incluindo padrões de extração e configuração de endpoints.
+- **criar-pje-download**: Cria skills de download do PJE para qualquer tribunal via engenharia reversa de arquivos HAR -- identifica endpoints, cookies, headers e gera scripts Python parametrizados.
 
 ## O que o /instalar-superjurista cria
 
