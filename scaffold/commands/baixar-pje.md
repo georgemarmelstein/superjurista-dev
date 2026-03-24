@@ -44,9 +44,47 @@ else:
 
 ---
 
-### Etapa 1: Capturar sessao (Chrome MCP + HAR)
+### Etapa 1: Capturar sessao
 
-#### Passo 1.1: Verificar se usuario ja esta logado
+#### Caminho A (preferido): Bookmarklet
+
+Se o usuario ja tiver o bookmarklet instalado:
+
+1. Pedir que acesse o PJE logado e clique no bookmarklet
+2. Mover o arquivo baixado para o projeto:
+
+```bash
+ARQUIVO=$(ls -t ~/Downloads/pje_session_*.json 2>/dev/null | head -1)
+if [ -n "$ARQUIVO" ]; then
+    cp "$ARQUIVO" pje_session.json
+    echo "[OK] $(basename $ARQUIVO) -> pje_session.json"
+else
+    echo "[ERRO] Nenhum pje_session_*.json encontrado em Downloads"
+fi
+```
+
+3. Voltar para Etapa 0 para validar a sessao
+
+Se o usuario NAO tiver o bookmarklet instalado, orientar a instalacao:
+```
+O bookmarklet e um favorito especial que captura a sessao do PJE em 1 clique.
+
+Para instalar:
+1. Abra o arquivo .claude/skills/pje-download/bookmarklet.min.txt
+2. Copie TODO o conteudo (comeca com javascript:)
+3. No Chrome: Favoritos > Gerenciar favoritos > Adicionar favorito
+4. Nome: "PJE Session"
+5. URL: cole o conteudo copiado
+6. Pronto! Quando logado no PJE, clique nesse favorito.
+```
+
+Se o bookmarklet falhar ou nao estiver disponivel, ir para Caminho B.
+
+---
+
+#### Caminho B (fallback): Chrome MCP + HAR
+
+##### Passo 1.1: Verificar se usuario ja esta logado
 
 ```
 mcp__claude-in-chrome__tabs_context_mcp
@@ -159,6 +197,7 @@ data/[modo]/
 ## Notas Tecnicas
 
 - O PJE usa header `X-pje-cookies` para autenticacao de download
-- Este header so e capturado via HAR (nao via JavaScript)
-- Chrome MCP automatiza o login, mas HAR ainda e necessario
+- O bookmarklet captura `document.cookie` que contem os mesmos cookies (PJE nao usa HttpOnly)
+- Metodo preferido: bookmarklet (~5s) > Chrome MCP + HAR (~5-10min)
+- HAR e fallback para tribunais com cookies HttpOnly ou CSP restritivo
 - Sessao expira em ~30 minutos de inatividade

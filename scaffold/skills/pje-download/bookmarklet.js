@@ -1,61 +1,67 @@
-// Bookmarklet para capturar sessao do PJE
+// Bookmarklet para capturar sessao do PJE - TRF5
 // Como usar:
 // 1. Crie um novo favorito no Chrome
-// 2. No campo URL, cole o codigo abaixo (tudo em uma linha)
+// 2. No campo URL, cole o codigo do bookmarklet.min.txt (tudo em uma linha)
 // 3. Quando estiver logado no PJE, clique no favorito
 // 4. Arquivo JSON sera baixado automaticamente
-
-// CODIGO DO BOOKMARKLET (cole como URL do favorito):
-// javascript:(function(){var c=document.cookie;var ts=Date.now();var h={cookies:{},headers_api:{"X-pje-legacy-app":"pje-trf5-1g"},cookie_download:c,extraido_em:new Date().toISOString(),metodo:"bookmarklet"};c.split(";").forEach(function(p){var kv=p.trim().split("=");if(kv[0])h.cookies[kv[0]]=kv[1]||""});h.headers_api["X-pje-cookies"]=c;var loc=prompt("Digite o X-pje-usuario-localizacao (numero da sua localizacao):","166702");if(loc)h.headers_api["X-pje-usuario-localizacao"]=loc;var json=JSON.stringify(h,null,2);var blob=new Blob([json],{type:"application/json"});var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download="pje_session_"+ts+".json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);alert("Arquivo baixado: pje_session_"+ts+".json\n\nMova para a pasta do projeto superjurista/")})();
 
 // VERSAO LEGIVEL (para entender o codigo):
 (function() {
     var cookies = document.cookie;
-    var ts = Date.now();  // Timestamp para nome unico
+    var ts = Date.now();
+
+    // Auto-descoberta via objeto global do PJE (se disponivel)
+    var constantes = (window.PJe && window.PJe.CONSTANTES) ? window.PJe.CONSTANTES : {};
+    var appName = constantes.PJE_APP_NAME || "pje-trf5-1g";
+    var localizacao = constantes.ID_USUARIO_LOCALIZACAO || null;
 
     var session = {
+        extraido_em: new Date().toISOString(),
+        metodo: "bookmarklet",
+        base_url: window.location.origin,
         cookies: {},
         headers_api: {
-            "X-pje-legacy-app": "pje-trf5-1g"
+            "X-pje-legacy-app": appName,
+            "X-pje-cookies": cookies
         },
         cookie_download: cookies,
-        extraido_em: new Date().toISOString(),
-        metodo: "bookmarklet"
+        pje_info: {
+            web_root: constantes.WEB_ROOT || "",
+            instancia: constantes.INSTANCIA || "",
+            versao: constantes.VERSAO_LEGACY || ""
+        }
     };
 
-    // Parse cookies
+    // Parse cookies em dicionario
     cookies.split(";").forEach(function(pair) {
-        var kv = pair.trim().split("=");
-        if (kv[0]) {
-            session.cookies[kv[0]] = kv[1] || "";
+        var idx = pair.trim().indexOf("=");
+        if (idx > 0) {
+            session.cookies[pair.trim().slice(0, idx)] = pair.trim().slice(idx + 1);
         }
     });
 
-    // X-pje-cookies e a string completa de cookies
-    session.headers_api["X-pje-cookies"] = cookies;
-
-    // Pedir localizacao do usuario (esse valor muda por usuario)
-    var localizacao = prompt(
-        "Digite o X-pje-usuario-localizacao (numero da sua localizacao):",
-        "166702"
-    );
-
+    // Localizacao: auto-descoberta ou prompt
     if (localizacao) {
         session.headers_api["X-pje-usuario-localizacao"] = localizacao;
+    } else {
+        var loc = prompt(
+            "X-pje-usuario-localizacao (numero da sua lotacao):",
+            "166702"
+        );
+        if (loc) session.headers_api["X-pje-usuario-localizacao"] = loc;
     }
 
+    // Download automatico
     var json = JSON.stringify(session, null, 2);
-
-    // Criar blob e fazer download (com nome unico)
     var blob = new Blob([json], {type: 'application/json'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'pje_session_' + ts + '.json';
+    a.download = 'pje_session_trf5-1g_' + ts + '.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    alert('Arquivo baixado: pje_session_' + ts + '.json\n\nMova para a pasta do projeto superjurista/');
+    alert('Baixado: pje_session_trf5-1g_' + ts + '.json\n\nMova para a pasta do projeto.');
 })();

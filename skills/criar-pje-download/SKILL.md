@@ -15,16 +15,16 @@ allowed-tools: Read, Write, Bash
 </identidade>
 
 <proposito>
-  <objetivo>Guiar o usuario na criacao de uma skill de download do PJE para seu tribunal especifico, usando engenharia reversa de arquivos HAR</objetivo>
-  <razao>Cada tribunal tem URLs, cookies e headers ligeiramente diferentes. A analise do HAR revela esses padroes sem necessidade de documentacao oficial</razao>
-  <resultado_final>Skill funcional com scripts Python para listar e baixar processos do tribunal alvo</resultado_final>
+  <objetivo>Guiar o usuario na criacao de uma skill de download do PJE para seu tribunal especifico, usando bookmarklet parametrico (preferido) ou engenharia reversa de arquivos HAR (fallback)</objetivo>
+  <razao>Cada tribunal tem URLs, cookies e headers ligeiramente diferentes. O bookmarklet com auto-descoberta via window.PJe.CONSTANTES resolve a maioria dos casos; a analise do HAR revela padroes quando o bookmarklet nao e suficiente</razao>
+  <resultado_final>Skill funcional com bookmarklet de captura de sessao e scripts Python para listar e baixar processos do tribunal alvo</resultado_final>
 </proposito>
 
 <quando_usar>
   <gatilhos>
     - Usuario quer baixar processos de tribunal diferente do TRF5
     - Usuario menciona "criar skill para [tribunal]"
-    - Usuario tem arquivo HAR do PJE de outro tribunal
+    - Usuario tem arquivo HAR ou quer usar bookmarklet de outro tribunal
     - Usuario quer adaptar pje-download para seu tribunal
   </gatilhos>
   <exclusoes>
@@ -35,7 +35,43 @@ allowed-tools: Read, Write, Bash
 
 <instrucoes>
 
-  <passo numero="1" nome="Orientar Captura do HAR">
+  <passo numero="0" nome="Metodo Preferido: Bookmarklet Parametrico">
+    O bookmarklet e o metodo PREFERIDO de captura de sessao por ser mais rapido
+    (~5 segundos) e nao depender de Chrome MCP ou DevTools. So requer que o
+    usuario esteja logado no PJE.
+
+    **Como funciona:**
+    O PJE injeta `window.PJe.CONSTANTES` na pagina com valores especificos do
+    tribunal (app name, localizacao, instancia). O bookmarklet le esses valores
+    em tempo de execucao, tornando-o automaticamente adaptavel. Em tribunais mais
+    antigos ou sem esse objeto, usa valores de fallback ou pergunta ao usuario.
+
+    **Template parametrizado:**
+    Consultar `references/template-bookmarklet.md` para o template completo com
+    placeholders `{{PJE_APP_NAME}}`, `{{TRIBUNAL_ID}}` e `{{LOCALIZACAO_DEFAULT}}`.
+
+    **Gerar o bookmarklet** no Passo 7 junto com os scripts Python.
+
+    **Formato do sessao.json:**
+    O bookmarklet produz um JSON com campos comuns (`cookies`, `headers_api`,
+    `cookie_download`, `base_url`, `extraido_em`, `metodo`). Este formato NAO e
+    um contrato rigido. O agente que cria a skill para um novo tribunal deve:
+    1. Verificar o que os scripts Python realmente consomem (via Read nos scripts)
+    2. Adaptar o bookmarklet para produzir exatamente os campos necessarios
+    3. Documentar o formato esperado no SKILL.md da skill gerada
+
+    O template em `references/template-bookmarklet.md` e um ponto de partida
+    que cobre a maioria dos tribunais PJE 2.x.
+
+    **Quando o bookmarklet NAO funciona:**
+    - Cookies HttpOnly: `document.cookie` retorna string vazia/incompleta
+    - CSP bloqueando inline JS: bookmarklet nao executa
+    - Tribunal usa autenticacao diferente do padrao PJE
+
+    Nesses casos, ir para Passo 1 (HAR).
+  </passo>
+
+  <passo numero="1" nome="Fallback: Orientar Captura do HAR">
     O HAR (HTTP Archive) contem TODAS as requisicoes feitas pelo navegador.
     Instrua o usuario a capturar dois tipos de HAR:
 
@@ -221,13 +257,22 @@ allowed-tools: Read, Write, Bash
 
     **Consultar referencias:**
     - `references/template-scripts.md` - Templates dos scripts parametrizaveis
+    - `references/template-bookmarklet.md` - Template do bookmarklet parametrizavel
     - `references/analise-har.md` - Guia completo de analise de HAR
+
+    **Gerar bookmarklet:**
+    Substituir placeholders no template de `references/template-bookmarklet.md`
+    com valores descobertos nos passos anteriores. Gerar dois arquivos:
+    - `bookmarklet.js` - versao legivel com comentarios e instrucoes
+    - `bookmarklet.min.txt` - versao minificada pronta para colar como URL de favorito
 
     **Estrutura de saida:**
     ```
     .claude/skills/pje-download-{tribunal}/
     ├── SKILL.md
     ├── config.json
+    ├── bookmarklet.js
+    ├── bookmarklet.min.txt
     └── scripts/
         ├── listar_processos.py
         ├── baixar_pdfs.py
@@ -316,4 +361,5 @@ allowed-tools: Read, Write, Bash
 <referencias>
   - `references/analise-har.md` - Guia detalhado de analise de HAR
   - `references/template-scripts.md` - Templates parametrizaveis dos scripts Python
+  - `references/template-bookmarklet.md` - Template parametrizavel do bookmarklet de captura de sessao
 </referencias>
