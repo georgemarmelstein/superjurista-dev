@@ -35,7 +35,7 @@ Todo prompt de subagente segue esta estrutura base:
 
     <passo numero="2" nome="Ler entrada">
       Read: $WORKSPACE/[arquivo-entrada]
-      → Leia INTEGRALMENTE. Se grande, leia em blocos.
+      → Leia a entrada por caminho.
     </passo>
 
     <passo numero="3" nome="Executar tarefa">
@@ -44,14 +44,19 @@ Todo prompt de subagente segue esta estrutura base:
       → Use português COM ACENTOS
     </passo>
 
-    <passo numero="4" nome="Salvar">
+    <passo numero="4" nome="Gravar o documento">
       Write: $WORKSPACE/[arquivo-saida]
+      → GRAVE o documento completo, com os marcadores de início/fim.
+    </passo>
+
+    <passo numero="5" nome="Responder status">
+      → Responder APENAS: "[slug-etapa] OK | [arquivo-saida]" — NÃO imprimir o documento.
     </passo>
   </execucao>
 
   <restricoes>
-    - DEVE começar com "[SINALIZADOR_INICIO]"
-    - DEVE terminar com "[SINALIZADOR_FIM]"
+    - DEVE GRAVAR o documento com "[SINALIZADOR_INICIO]" e "[SINALIZADOR_FIM]" (âncoras do gate)
+    - Responder APENAS 1 linha de status — NÃO imprimir o documento (L5)
     - SEM asteriscos, SEM hashtags
     - [Outras restrições específicas]
   </restricoes>
@@ -96,17 +101,22 @@ Todo prompt de subagente segue esta estrutura base:
 
     <passo numero="2" nome="Ler entrada">
       Read: $WORKSPACE/[arquivo]
+      → Leia a entrada por caminho.
     </passo>
 
-    <passo numero="3" nome="Executar e salvar">
+    <passo numero="3" nome="Executar e gravar">
       → [Instruções]
-      Write: $WORKSPACE/[saida]
+      Write: $WORKSPACE/[saida]   → GRAVA o documento completo, com marcadores.
+    </passo>
+
+    <passo numero="4" nome="Responder status">
+      → Responder APENAS: "[slug-etapa] OK | [saida]" — NÃO imprimir o documento.
     </passo>
   </execucao>
 
   <restricoes>
-    - DEVE começar com "[INICIO]"
-    - DEVE terminar com "[FIM]"
+    - DEVE GRAVAR com "[INICIO]" e "[FIM]" (âncoras do gate)
+    - Responder APENAS 1 linha de status — NÃO imprimir o documento (L5)
   </restricoes>
 
 </prompt_subagente>
@@ -151,15 +161,19 @@ Todo prompt de subagente segue esta estrutura base:
       → Use como REFERÊNCIA, não copie.
     </passo>
 
-    <passo numero="4" nome="Executar e salvar">
+    <passo numero="4" nome="Executar e gravar">
       → [Instruções]
-      Write: $WORKSPACE/[saida]
+      Write: $WORKSPACE/[saida]   → GRAVA o documento completo, com marcadores.
+    </passo>
+
+    <passo numero="5" nome="Responder status">
+      → Responder APENAS: "[slug-etapa] OK | [saida]" — NÃO imprimir o documento.
     </passo>
   </execucao>
 
   <restricoes>
-    - DEVE começar com "[INICIO]"
-    - DEVE terminar com "[FIM]"
+    - DEVE GRAVAR com "[INICIO]" e "[FIM]" (âncoras do gate)
+    - Responder APENAS 1 linha de status — NÃO imprimir o documento (L5)
   </restricoes>
 
 </prompt_subagente>
@@ -168,6 +182,10 @@ Todo prompt de subagente segue esta estrutura base:
 ---
 
 ### Variante C: Subagente com Chunking (arquivos grandes)
+
+> **LEGADO — era-200k.** O chunking defensivo era necessário na janela de 200k; hoje leia
+> a entrada direto por caminho. Use esta variante SÓ para arquivos genuinamente gigantes
+> que estouram a janela atual — não como padrão.
 
 **Quando usar:** Arquivo de entrada muito grande para processar de uma vez.
 
@@ -218,6 +236,10 @@ Todo prompt de subagente segue esta estrutura base:
 ---
 
 ### Variante D: Subagente Consolidador (pós-chunking)
+
+> **LEGADO — era-200k.** Só faz sentido como par da Variante C (chunking defensivo). Hoje,
+> se a leitura direta cabe, não há chunks a consolidar. Use apenas quando C for genuinamente
+> necessária (arquivo gigante).
 
 **Quando usar:** Após processar chunks, para unificar os resultados parciais.
 
@@ -274,7 +296,12 @@ Todo prompt de subagente segue esta estrutura base:
 
 ### Variante E: Subagente de Merge (apenas unificar)
 
-**Quando usar:** Juntar dois ou mais arquivos sem modificar o conteúdo.
+> **v3.0 — prefira um SCRIPT para merge PURO.** Se o merge é concatenação sem juízo (juntar
+> dois arquivos sem modificar), use um `merge_<sistema>.py` (zero LLM, zero contexto): o
+> conteúdo não transita pelo contexto do orquestrador. Este subagente de merge só é necessário
+> quando há JUÍZO EDITORIAL (reconciliar, deduplicar com critério, reescrever transições).
+
+**Quando usar:** Juntar dois ou mais arquivos com juízo editorial (não mera concatenação).
 
 ```markdown
 <prompt_subagente tipo="MERGE" variante="unificacao">
@@ -332,9 +359,10 @@ Todo prompt de subagente segue esta estrutura base:
 |---------|----------|
 | Uma entrada, uma saída | A - Simples |
 | Duas+ entradas para combinar | B - Múltiplas Entradas |
-| Arquivo muito grande | C - Chunking |
-| Após chunking, unificar | D - Consolidador |
-| Juntar arquivos sem modificar | E - Merge |
+| Arquivo genuinamente gigante (estoura a janela) | C - Chunking (LEGADO era-200k) |
+| Após chunking, unificar | D - Consolidador (LEGADO era-200k) |
+| Concatenação PURA (sem juízo) | SCRIPT `merge_<sistema>.py` (não subagente) |
+| Merge com JUÍZO EDITORIAL | E - Merge |
 
 ---
 
@@ -362,10 +390,11 @@ Todo prompt de subagente segue esta estrutura base:
 ## Regras de Ouro
 
 1. **Sempre instrua LER o agent** - Nunca copie o prompt completo
-2. **Passos explícitos** - Read → Process → Write
-3. **Sinalizadores obrigatórios** - Sempre nas restrições
-4. **Variáveis com $** - $WORKSPACE, $NUMERO, etc. (orquestrador substitui antes de enviar)
-5. **Seta para instruções** - Use → para clareza
+2. **Passos explícitos** - Read → Process → **Write (grava)** → **Responder 1 linha de status**
+3. **Grava + responde 1 linha (L5)** - o documento vai no ARQUIVO; a resposta é só "<slug> OK | <arquivo>", nunca o documento inline
+4. **Sinalizadores obrigatórios** - âncoras do gate, gravadas NO ARQUIVO (conferidas por verificar_<sistema>.py, não por leitura)
+5. **Variáveis com $** - $WORKSPACE, $NUMERO, etc. (orquestrador substitui antes de enviar)
+6. **Seta para instruções** - Use → para clareza
 
 ## Checklist de Validação
 
@@ -376,6 +405,9 @@ Todo prompt de subagente segue esta estrutura base:
 [ ] <proposito> tem objetivo claro?
 [ ] <execucao> tem passos numerados?
 [ ] Primeiro passo é SEMPRE Read do agent?
-[ ] <restricoes> tem sinalizadores início/fim?
+[ ] Passo de saída GRAVA (Write) o documento com marcadores?
+[ ] Último passo responde 1 linha de status ("<slug> OK | <arquivo>") — NÃO ecoa o documento (L5)?
+[ ] <restricoes> tem sinalizadores início/fim (âncoras do gate) e "NÃO imprimir inline"?
+[ ] Validação da etapa é por gate por script (verificar --etapa), não por leitura?
 [ ] Variáveis usam $VARIAVEL (ex: $WORKSPACE)?
 ```

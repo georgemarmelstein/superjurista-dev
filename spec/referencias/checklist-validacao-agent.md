@@ -208,10 +208,12 @@ Erros comuns:
 [ ] Tag <restricoes> presente?
 [ ] Usa prefixos NUNCA/NÃO/SEMPRE?
 [ ] Inclui "NÃO assumir caminhos de arquivo"?
+[ ] Inclui "NÃO imprimir o documento na resposta" (L5)?
 [ ] Inclui "SEMPRE usar português com acentos"?
 
 Restrições obrigatórias para v2.0:
   - NÃO assumir caminhos de arquivo - recebe via contexto
+  - NÃO imprimir o documento na resposta - grava no ARQUIVO e responde 1 linha (L5)
   - NUNCA inventar informações não presentes na entrada
   - SEMPRE usar português com acentos corretos
 ```
@@ -261,8 +263,9 @@ Formato:
 
 ```
 [ ] Tag <formato_saida> presente?
-[ ] Template literal do output esperado?
-[ ] Inclui sinalizadores de início e fim?
+[ ] Descreve o DOCUMENTO GRAVADO em arquivo (Write), não uma resposta de chat?
+[ ] Inclui os marcadores de início e fim no documento?
+[ ] Inclui a resposta de 1 linha ao orquestrador ("<etapa> OK | <arquivo>")?
 ```
 
 ### 4.2 Tag `<sinalizadores>` (MÉDIO - 3 pts)
@@ -270,14 +273,15 @@ Formato:
 ```
 [ ] Tag <sinalizadores> presente?
 [ ] Define pelo menos Início e Fim?
+[ ] Declarados como ÂNCORAS que vivem NO ARQUIVO, conferidas por gate por script (não inline)?
 [ ] Formato de tabela correto?
 
 Formato:
   <sinalizadores>
-    | Posição | Texto Obrigatório |
-    |---------|-------------------|
-    | Início  | "TEXTO_INICIO"    |
-    | Fim     | "TEXTO_FIM"       |
+    | Posição | Texto Obrigatório | Uso |
+    |---------|-------------------|-----|
+    | Início  | "TEXTO_INICIO"    | Abre o documento no ARQUIVO (âncora do gate) |
+    | Fim     | "TEXTO_FIM"       | Fecha o documento no ARQUIVO (âncora do gate) |
   </sinalizadores>
 ```
 
@@ -397,7 +401,7 @@ Mapeamento v1 → v2 (tags obsoletas):
 
 ## 7. Prevenção de Anti-Padrões Multi-Agentes (14 pontos) [NOVO v1.3]
 
-> **Referência:** `.claude/specs/referencias/anti-padroes-multi-agentes.md`
+> **Referência:** `.claude/spec/referencias/anti-padroes-multi-agentes.md`
 >
 > Baseado em pesquisa que mostra 60-80% de falha em sistemas multi-agentes.
 
@@ -562,14 +566,15 @@ CRÍTICO (deve ter todos):
 ALTO (deve ter maioria):
 [ ] Tag <identidade> com <papel> e <estilo>
 [ ] Tag <restricoes> com "NÃO assumir caminhos"
+[ ] Tag <restricoes> com "NÃO imprimir o documento inline" (L5)   [NOVO v3.0]
 [ ] Tag <contingencias> com ações para falhas
-[ ] Tag <instrucoes> com passos numerados
+[ ] Tag <instrucoes> com passos numerados (saída GRAVA + responde 1 linha)  [NOVO v3.0]
 [ ] Sem pseudo-contratos em comentários HTML                    [NOVO v1.1]
 [ ] Saída definida por TIPO, não por nome de arquivo            [NOVO v1.1]
 
 RECOMENDADO (nice to have):
-[ ] Tag <formato_saida> com template
-[ ] Tag <sinalizadores> com início/fim
+[ ] Tag <formato_saida> descreve o documento GRAVADO + resposta de 1 linha  [NOVO v3.0]
+[ ] Tag <sinalizadores> como âncoras do gate (vivem no arquivo)  [NOVO v3.0]
 [ ] Tag <exemplos> com entrada/saída
 [ ] Agent aproveita entradas opcionais se disponíveis           [NOVO v1.1]
 
@@ -594,7 +599,7 @@ ANTI-PADRÕES MULTI-AGENTES (verificar):                         [NOVO v1.3]
   - 7.4 Diversidade de perspectiva (3 pts)
 - ATUALIZADO: Score máximo de 128 para 142 pontos
 - ATUALIZADO: Tabela de interpretação com novos ranges
-- ADICIONADO: Referência a `.claude/specs/referencias/anti-padroes-multi-agentes.md`
+- ADICIONADO: Referência a `.claude/spec/referencias/anti-padroes-multi-agentes.md`
 - FONTE: Pesquisa de Arquiteturas Multi-Agentes Hierárquicas (60-80% falha)
 
 ### v1.2 (2026-01-18)

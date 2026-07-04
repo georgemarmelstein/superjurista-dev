@@ -1,11 +1,3 @@
-# Orquestrador: criar-skill v3.0
-
-> **Propósito:** Meta-orquestrador para criação de skills com TDD (Test-Driven Development) e CSO (Claude Search Optimization).
->
-> **Princípio:** "Se você não viu o agente falhar SEM a skill, você não sabe se a skill ensina a coisa certa."
->
-> **Padrão:** RED (teste sem skill) → GREEN (skill mínima) → REFACTOR (fechar brechas)
-
 ---
 description: |
   Use when creating new skills, automations, or specialized knowledge packages.
@@ -14,12 +6,24 @@ argument-hint: [ideia-geral-da-skill]
 allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion
 ---
 
+# Orquestrador: criar-skill v3.0
+
+> **Propósito:** Meta-orquestrador para criação de skills com TDD (Test-Driven Development) e CSO (Claude Search Optimization).
+>
+> **Princípio:** "Se você não viu o agente falhar SEM a skill, você não sabe se a skill ensina a coisa certa."
+>
+> **Padrão:** RED (teste sem skill) → GREEN (skill mínima) → REFACTOR (fechar brechas)
+>
+> **Nota de versão:** este "v3.0" é a linhagem própria desta skill (TDD + CSO), independente
+> do "v3.0" dos pipelines (retomada/gate/disco). Para skills que EMBARCAM scripts, a seção
+> "Isolamento de Contexto" já traz `context: fork`; a Fase 4 acrescenta o padrão de gate/output.
+
 <meta_orquestrador>
   <tipo>Criador de Artefatos com TDD</tipo>
   <artefato_alvo>Skill (diretório + SKILL.md + references/)</artefato_alvo>
   <spec_referencia>${CLAUDE_PLUGIN_ROOT}/spec/templates/skill.md</spec_referencia>
   <checklist_referencia>${CLAUDE_PLUGIN_ROOT}/spec/referencias/checklist-validacao-skill.md</checklist_referencia>
-  <guia_referencia>docs/2026-01-23-guia-escrita-skills.md</guia_referencia>
+  <guia_referencia>${CLAUDE_PLUGIN_ROOT}/skills/criar-skill/references/skill-writing-guide.md</guia_referencia>
 </meta_orquestrador>
 
 <variaveis>
@@ -123,6 +127,14 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion
     - Comandos literais para copiar e executar
     - "REGRA ABSOLUTA: NAO crie codigo novo"
     - Documentação rica em references/
+
+    **Scripts determinísticos (padrão v3.0):**
+    - Output mínimo `[INICIO]/[OK]/[ERRO]/[FIM]` — uma linha por item; detalhe vai para log, não stdout
+    - O SKILL.md retorna só status/caminhos/estatísticas (nunca o output cru dos scripts)
+    - Se a skill é um MINI-PIPELINE de 3+ etapas com dependências: subagentes internos GRAVAM
+      em disco, o SKILL.md valida por `Bash: test -f`/`grep` (regra zero-read — nunca Read para
+      checar existência) e há retomada por varredura. Ver
+      `${CLAUDE_PLUGIN_ROOT}/spec/referencias/design-skill-agentica-robusta.md`.
   </isolamento_contexto>
 
   <eficiencia_tokens>
@@ -155,7 +167,7 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion
   <passo numero="2" nome="Ler referências">
     Read: ${CLAUDE_PLUGIN_ROOT}/spec/templates/skill.md
     Read: ${CLAUDE_PLUGIN_ROOT}/spec/referencias/checklist-validacao-skill.md
-    Read: docs/2026-01-23-guia-escrita-skills.md (se existir)
+    Read: ${CLAUDE_PLUGIN_ROOT}/skills/criar-skill/references/skill-writing-guide.md (se existir)
   </passo>
 
   <passo numero="3" nome="Classificar tipo">
@@ -830,5 +842,5 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion
 ## Referências
 
 - [obra/superpowers - writing-skills](https://github.com/obra/superpowers/blob/main/skills/writing-skills/SKILL.md)
-- [Guia de Escrita de Skills](docs/2026-01-23-guia-escrita-skills.md)
+- [Guia de Escrita de Skills](${CLAUDE_PLUGIN_ROOT}/skills/criar-skill/references/skill-writing-guide.md)
 - [Agent Skills Spec](https://agentskills.io/specification)

@@ -122,14 +122,16 @@ description: >
     | Tool | Função |
     |------|--------|
     | Task | Disparar subagentes |
-    | Read | Verificar outputs |
-    | Bash | Validar sinalizadores |
+    | Bash | Validar por script (test -f / grep) — zero-read |
+    | Read | EXCEÇÃO rara: diagnosticar falha (nunca para validar rotina — L14) |
     | TodoWrite | Rastrear progresso |
   </tools_orquestrador>
 
   <regras_uso>
     - Subagentes LEEM agents/ diretamente (não recebem cópia)
+    - Subagentes GRAVAM o output no arquivo (Write) e respondem 1 linha de status; nunca ecoam o documento inline (L5)
     - Orquestrador NÃO executa tarefas dos subagentes
+    - Validação por script (Bash: test -f / grep — zero-read), nunca por Read do documento (L14)
     - Cada subagente tem contexto ISOLADO
   </regras_uso>
 </capacidades>
@@ -179,9 +181,10 @@ description: >
 
   <etapa numero="0" nome="Preparação">
     <acao_orquestrador>
-      1. Registrar progresso via TodoWrite
-      2. Ler referências se necessário
-      3. Definir variáveis de contexto
+      1. Definir variáveis de contexto
+      2. Varredura de retomada: Bash `test -f`/`grep` nas saídas já existentes — o que já passa
+         no gate NÃO roda de novo (L13); a lista de PENDENTES é o plano
+      3. Registrar progresso via TodoWrite (etapas já válidas nascem completed)
     </acao_orquestrador>
   </etapa>
 
@@ -196,16 +199,19 @@ description: >
       Despachar subagente que:
       1. Leia agents/[agent-1].md para suas instruções
       2. Receba o contexto necessário
-      3. Produza output com sinalizadores
+      3. GRAVE (Write) o output no arquivo, com marcadores de início/fim, e responda 1 linha
+         de status ("<etapa> OK | <arquivo>") — NÃO ecoe o documento inline (L5)
 
       **Por quê:** Isolar cada etapa em subagente mantém contexto limpo
-      e permite validação independente de cada artefato.
+      e permite validação independente (por script) de cada artefato.
     </execucao>
 
     <validacao>
-      1. Arquivo existe?
-      2. Sinalizador de início presente?
-      3. Sinalizador de fim presente?
+      Bash (zero-read — nunca Read para validar):
+      1. `test -f [saida]` — arquivo existe?
+      2. `grep -q "[INICIO]" [saida]` — sinalizador de início presente?
+      3. `grep -q "[FIM]" [saida]` — sinalizador de fim presente?
+      exit 0 = válida; falha → REGENERAR (máx 2x).
     </validacao>
   </etapa>
 
@@ -218,8 +224,9 @@ description: >
 <checklist_orquestrador>
   - [ ] Sou coordenador, não executor
   - [ ] Subagentes leem agents/ diretamente
-  - [ ] Cada etapa validada antes de prosseguir
-  - [ ] TodoWrite rastreia todas as etapas
+  - [ ] Subagentes GRAVAM o output e respondem 1 linha (não ecoam inline — L5)
+  - [ ] Cada etapa validada por script (test -f / grep — zero-read), nunca por Read (L14)
+  - [ ] TodoWrite rastreia todas as etapas (válidas nascem completed — retomada L13)
 </checklist_orquestrador>
 ```
 

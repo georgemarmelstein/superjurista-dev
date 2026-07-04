@@ -1,14 +1,17 @@
-# Orquestrador: criar-agente v2.0
-
-> **Propósito:** Meta-orquestrador que cria agentes modulares seguindo as SPECs v2.0
->
-> **Diferencial:** Usa skill brainstorming para refinar ideias antes de gerar
-
 ---
-description: Cria agentes seguindo as SPECs v2.0 com brainstorming guiado
+description: Cria agentes modulares (SPEC v2.0) com o contrato de saída v3.0 — grava em arquivo e responde 1 linha — via brainstorming guiado
 argument-hint: [ideia-geral-do-agente]
 allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion
 ---
+
+# Orquestrador: criar-agente v2.1
+
+> **Propósito:** Meta-orquestrador que cria agentes modulares.
+>
+> **Diferencial:** Refina a ideia por brainstorming e garante o contrato de saída v3.0 — o
+> agente GRAVA o próprio documento (Write) e responde 1 linha; os `<sinalizadores>` são
+> âncoras que o gate do pipeline confere NO ARQUIVO, não texto ecoado inline. A capacidade
+> atômica e a modularidade (o contrato por tipo) permanecem intactas.
 
 <identidade>
   <papel>Arquiteto de Agentes - especialista em criar agentes modulares seguindo o framework SuperJurista v2.0</papel>
@@ -325,12 +328,15 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion
            <saida>
              - Tipo: [tipo genérico]
              - Formato: [MD|TXT|JSON]
+             - Destino: gravado em arquivo (Write) no caminho injetado; resposta ao
+               orquestrador é 1 linha de status (v3.0)
            </saida>
          </contrato>
 
          <restricoes>
            - NÃO assumir caminhos de arquivo
            - NUNCA inventar informações
+           - NÃO imprimir o documento na resposta — grava no arquivo e responde 1 linha (L5)
            - SEMPRE usar português com acentos
            - [+ restrições específicas do domínio]
          </restricoes>
@@ -348,15 +354,21 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion
            - [+ passos específicos]
          </instrucoes>
 
-      4. **Definir tags recomendadas:**
+      4. **Definir tags recomendadas (contrato de saída v3.0):**
 
          <formato_saida>
+           <!-- Descreve o DOCUMENTO GRAVADO em arquivo, não a resposta de chat. -->
+           <arquivo>
            [SINALIZADOR_INICIO]
-           [Template do output]
+           [Template do documento]
            [SINALIZADOR_FIM]
+           </arquivo>
+           <resposta_ao_orquestrador>[NOME] OK | [caminho-do-arquivo]</resposta_ao_orquestrador>
          </formato_saida>
 
          <sinalizadores>
+           <!-- Âncoras que VIVEM NO ARQUIVO; o gate do pipeline as confere (acento/caixa
+                normalizados). Não são texto para emoldurar uma resposta inline. -->
            | Posição | Texto |
            |---------|-------|
            | Início | "[TEXTO]" |
@@ -538,8 +550,8 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion
       <tags_recomendadas max="10">
         | Item | Pts | Check |
         |------|-----|-------|
-        | <formato_saida> | 3 | [ ] |
-        | <sinalizadores> | 3 | [ ] |
+        | <formato_saida> descreve o documento GRAVADO + resposta de 1 linha (v3.0) | 3 | [ ] |
+        | <sinalizadores> como âncoras do gate (vivem no arquivo), não eco inline | 3 | [ ] |
         | <exemplos> | 3 | [ ] |
         | Extensões organizadas | 1 | [ ] |
       </tags_recomendadas>

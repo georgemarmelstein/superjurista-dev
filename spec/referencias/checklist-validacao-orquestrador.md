@@ -6,8 +6,8 @@
 >
 > **Changelog v2.0:**
 > - Harmonizado com checklist de agents (6 seções ponderadas)
-> - Pontuação explícita por item (total: 100 pontos)
-> - Threshold de aprovação: 90/100 (90%)
+> - Pontuação explícita por item (total: 130 pontos)
+> - Threshold de aprovação: 104/130 (80%)
 > - Sufixos de correção contextualizados por seção
 
 ---
@@ -17,10 +17,10 @@
 1. Copie este checklist
 2. Marque cada item e some os pontos obtidos
 3. Itens CRÍTICOS (seções 1-3) bloqueiam uso - DEVEM ser 100%
-4. Itens ALTOS (seção 4) afetam qualidade - corrigir antes de produção
-5. Itens MÉDIOS (seções 5-6) afetam padronização - corrigir quando possível
+4. Itens ALTOS (seções 4, 5, 7, 8) afetam qualidade - corrigir antes de produção
+5. Itens MÉDIOS (seção 6) afetam padronização - corrigir quando possível
 
-**Score mínimo para aprovação:** 90/100
+**Score mínimo para aprovação:** 104/130 (80%)
 
 ---
 
@@ -76,8 +76,7 @@ allowed-tools: Read Task Bash TodoWrite
 
   <passo numero="2" nome="Ler entrada">
     Read: $WORKSPACE/processo.txt
-    - O orquestrador ja substituiu $WORKSPACE pelo caminho real.
-    - Leia INTEGRALMENTE. Se grande, leia em blocos.
+    - O orquestrador ja substituiu $WORKSPACE pelo caminho real. Leia a entrada por caminho.
   </passo>
 
   <passo numero="3" nome="Executar tarefa">
@@ -86,13 +85,18 @@ allowed-tools: Read Task Bash TodoWrite
     - Use portugues COM ACENTOS
   </passo>
 
-  <passo numero="4" nome="Salvar">
+  <passo numero="4" nome="Gravar o documento">
     Write: $WORKSPACE/$NUMERO-linha-tempo.md
+    - GRAVE o documento completo, com os marcadores de inicio/fim.
+  </passo>
+
+  <passo numero="5" nome="Responder status">
+    - Responder APENAS: "linha-tempo OK | $NUMERO-linha-tempo.md" — NAO imprimir o documento (L5).
   </passo>
 
   <restricoes>
-    - DEVE comecar com "# Linha do Tempo Processual"
-    - DEVE terminar com "É o que satisfaz extrair dos autos."
+    - GRAVAR com "# Linha do Tempo Processual" (inicio) e "É o que satisfaz extrair dos autos." (fim)
+    - NAO imprimir o documento na resposta — responder so a linha de status
     - NUNCA usar TodoWrite
   </restricoes>
 </prompt_subagente>
@@ -248,7 +252,8 @@ FLUXO DE DADOS:
 | 5. Contratos e Estrutura | ALTA | 10 | Não |
 | 6. Tags e Boas Práticas | MÉDIA | 5 | Não |
 | 7. Anti-Padrões Multi-Agentes | ALTA | 15 | Não |
-| **TOTAL** | - | **115** | - |
+| 8. Padrão v3.0 (Retomada/Gate/Saída) | ALTA | 15 | Não |
+| **TOTAL** | - | **130** | - |
 
 ---
 
@@ -266,18 +271,19 @@ VALIDAÇÃO DO ORQUESTRADOR
 5. Contratos e Estrutura (ALTO):            __ / 10
 6. Tags e Boas Práticas (MÉDIO):            __ / 5
 7. Anti-Padrões Multi-Agentes (ALTO):       __ / 15  [NOVO v2.1]
+8. Padrão v3.0 - Retomada/Gate/Saída (ALTO):__ / 15  [NOVO v3.0]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TOTAL:                                      __ / 115
+TOTAL:                                      __ / 130
 
-Status: [APROVADO (≥92) | REPROVADO (<92)]
+Status: [APROVADO (≥104) | REPROVADO (<104)]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 **Interpretação:**
-- **104-115:** Pronto para produção (90%+)
-- **92-103:** Pequenos ajustes necessários (80-89%)
-- **80-91:** Ajustes médios necessários (70-79%)
-- **<80:** Revisão significativa necessária (<70%)
+- **117-130:** Pronto para produção (90%+)
+- **104-116:** Pequenos ajustes necessários (80-89%)
+- **91-103:** Ajustes médios necessários (70-79%)
+- **<91:** Revisão significativa necessária (<70%)
 
 ---
 
@@ -442,8 +448,18 @@ Subtotal: 10/10
 [✓] 1 pt - <agents_utilizados>
 Subtotal: 5/5
 
+## 7. Prevenção de Anti-Padrões Multi-Agentes [ALTO]
+[✓] 15 pts - Sem race conditions, isolamento e menor privilégio corretos
+Subtotal: 15/15
+
+## 8. Padrão v3.0 — Retomada, Gate e Saída em Disco [ALTO]
+[✓] 5 pts - Gate scripts/verificar_<sistema>.py + Etapa 0 roda a varredura (PENDENTES)
+[✓] 5 pts - Cláusula de retomada por etapa + validação por --etapa/--gate (não lê p/ validar)
+[✓] 5 pts - Invólucro manda GRAVAR + responder 1 linha + NÃO imprimir o documento
+Subtotal: 15/15
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TOTAL: 100/100 ✓ APROVADO
+TOTAL: 130/130 ✓ APROVADO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -451,31 +467,39 @@ TOTAL: 100/100 ✓ APROVADO
 
 ## 7. Prevenção de Anti-Padrões Multi-Agentes [ALTO] - 15 pontos [NOVO v2.1]
 
-> **Referência:** `.claude/specs/referencias/anti-padroes-multi-agentes.md`
+> **Referência:** `.claude/spec/referencias/anti-padroes-multi-agentes.md`
 >
 > Orquestradores são especialmente vulneráveis a anti-padrões de coordenação.
 
 | Item | Pts | Check |
 |------|-----|-------|
-| Validação entre TODAS as etapas (sinalizadores) | 4 | [ ] |
+| Validação entre TODAS as etapas por GATE POR SCRIPT (verificar --etapa) | 4 | [ ] |
 | Fallback/circuit breaker se validação falha | 3 | [ ] |
 | Agents têm papéis DISTINTOS (não sobrepostos) | 3 | [ ] |
 | Comunicação usa schemas estruturados | 3 | [ ] |
 | Complexidade justificada (testou simpler?) | 2 | [ ] |
 
-### 7.1 Validação entre Etapas (CRÍTICO)
+### 7.1 Validação entre Etapas por Script (CRÍTICO)
+
+A validação é DETERMINÍSTICA e do SCRIPT — o orquestrador NÃO lê o documento para conferir
+sinalizadores (L14). O gate normaliza acento/caixa e devolve exit-code.
 
 ```markdown
-<!-- CORRETO: Validação explícita -->
+<!-- CORRETO: gate por script (exit 0 = válida) -->
 <validacao>
-  - [ ] Arquivo $WORKSPACE/$NUMERO-relatorio.md existe?
-  - [ ] Contém sinalizador "É o que havia de relevante a relatar."?
-  - [ ] SE FALHA: Não avançar, aplicar sufixo de correção
+  Bash: python scripts/verificar_<sistema>.py "$WORKSPACE" --etapa relatorio
+  - exit 0 → prosseguir
+  - exit 1 ([AUSENTE]/[INVALIDA]) → NÃO avançar; redespachar com sufixo_gate (máx 2x)
+</validacao>
+
+<!-- ERRADO: validar LENDO o documento (viola L14) -->
+<validacao>
+  - [ ] Orquestrador lê o arquivo e procura "É o que havia de relevante a relatar."?
 </validacao>
 
 <!-- ERRADO: Encadeamento cego -->
 Task(agent1) → Task(agent2) → Task(agent3)
-<!-- Sem verificação de saída = cascata de erros -->
+<!-- Sem gate entre etapas = cascata de erros -->
 ```
 
 ### 7.2 Circuit Breaker
@@ -538,6 +562,45 @@ Task(agent1) → Task(agent2) → Task(agent3)
 
 ---
 
+## 8. Padrão v3.0 — Retomada, Gate e Saída em Disco [ALTO] - 15 pontos [NOVO v3.0]
+
+> O encanamento v3.0: retomada por varredura (L13), validação por script (L14) e contrato de
+> saída em disco (L5). Substituem os andaimes da era 200k (validação por leitura, chunking defensivo).
+
+| Item | Pts | Check |
+|------|-----|-------|
+| **RETOMADA:** Etapa 0 roda o gate (verificar_<sistema>.py) → linha `PENDENTES` é o plano | 3 | [ ] |
+| **RETOMADA:** cada etapa tem cláusula `<retomada>` (pula se o slug não está em PENDENTES) | 2 | [ ] |
+| **VALIDAÇÃO POR SCRIPT:** gate `--etapa` por etapa; orquestrador NÃO lê o documento p/ validar (L14) | 4 | [ ] |
+| **VALIDAÇÃO POR SCRIPT:** Finalização com gate `--gate` | 1 | [ ] |
+| **SAÍDA EM DISCO:** o invólucro manda GRAVAR (Write) o documento com marcadores | 2 | [ ] |
+| **SAÍDA EM DISCO:** o invólucro manda RESPONDER 1 linha ("<slug> OK \| <arquivo>") | 2 | [ ] |
+| **SAÍDA EM DISCO:** restrição explícita "NÃO imprimir o documento inline" (L5) | 1 | [ ] |
+
+### 8.1 Retomada por varredura (L13)
+
+```markdown
+<!-- CORRETO: Etapa 0 roda o gate; PENDENTES é o plano; etapas válidas nascem completed -->
+Bash: python scripts/verificar_<sistema>.py "$WORKSPACE"   → "PENDENTES: relatorio fundamentacao"
+<etapa numero="2">
+  <retomada>Se "relatorio" NÃO está em PENDENTES → PULAR (o trabalho já foi pago).</retomada>
+</etapa>
+
+<!-- ERRADO: reexecutar tudo do zero a cada rodada (retrabalho em opus é o desperdício mais caro) -->
+```
+
+### 8.2 Contrato de saída em disco (L5)
+
+```markdown
+<!-- CORRETO: grava + responde 1 linha -->
+<passo numero="4" nome="Gravar">Write: $WORKSPACE/$NUMERO-relatorio.md</passo>
+<passo numero="5" nome="Status">Responder APENAS: "relatorio OK | $NUMERO-relatorio.md" — NÃO imprimir o documento.</passo>
+
+<!-- ERRADO: devolver o documento inteiro inline entre sinalizadores (era 200k) -->
+```
+
+---
+
 ## Anti-Patterns Comuns (Resumo)
 
 | Anti-Pattern | Seção | Pontos Perdidos | Solução |
@@ -550,14 +613,24 @@ Task(agent1) → Task(agent2) → Task(agent3)
 | Sem TodoWrite | 4 | 7 | Criar na Etapa 0 |
 | Sem <contratos_dados> | 5 | 4 | Adicionar tabela |
 | Sem diagrama ASCII | 6 | 1 | Criar em <resumo_arquitetura> |
-| Encadeamento cego (sem validação) | 7 | 4 | Validar entre etapas |
+| Encadeamento cego (sem gate por script) | 7 | 4 | Validar entre etapas com verificar --etapa |
 | Sem circuit breaker | 7 | 3 | Limite de tentativas |
 | Papéis sobrepostos | 7 | 3 | Um papel único por agent |
 | Comunicação não estruturada | 7 | 3 | Usar schemas |
+| Etapa 0 não roda o gate / pipeline não retomável | 8 | 5 | Varredura na Etapa 0; PENDENTES é o plano; cláusula <retomada> por etapa |
+| Orquestrador LÊ o documento para validar (viola L14) | 8 | 5 | Gate por script (--etapa/--gate) |
+| Subagente ecoa o documento inline (viola L5) | 8 | 5 | Invólucro manda GRAVAR + responder 1 linha |
 
 ---
 
 ## Changelog
+
+### v3.0 (2026-07-04)
+- ADICIONADO: Seção 8 - Padrão v3.0: Retomada (L13), Gate por script (L14), Saída em disco (L5) (15 pts)
+- ATUALIZADO: Score máximo de 115 para 130 pontos; threshold de aprovação 104/130 (80%)
+- ATUALIZADO: Seção 7.1 - validação entre etapas agora é por GATE POR SCRIPT (verificar --etapa), não por leitura de sinalizador
+- CORRIGIDO: exemplo canônico da Seção 2 - removido "leia em blocos" (chunking defensivo era-200k); passo de saída GRAVA + responde 1 linha
+- CORRIGIDO: caminho do diretório de spec para o singular `.claude/spec/` (o plural estava incorreto)
 
 ### v2.2 (2026-01-22)
 - CORRIGIDO: Seção 2 - Regra de tamanho de prompts inline
@@ -577,7 +650,7 @@ Task(agent1) → Task(agent2) → Task(agent3)
   - 7.5 Complexidade justificada (2 pts)
 - ATUALIZADO: Score máximo de 100 para 115 pontos
 - ATUALIZADO: Threshold de aprovação de 90 para 92 (80%)
-- ADICIONADO: Referência a `.claude/specs/referencias/anti-padroes-multi-agentes.md`
+- ADICIONADO: Referência a `.claude/spec/referencias/anti-padroes-multi-agentes.md`
 - FONTE: Pesquisa de Arquiteturas Multi-Agentes Hierárquicas
 
 ### v2.0 (2026-01-18)
@@ -585,7 +658,7 @@ Task(agent1) → Task(agent2) → Task(agent3)
 
 ---
 
-**Checklist versão:** 2.2
-**Compatível com spec:** v2.0+
+**Checklist versão:** 3.0
+**Compatível com spec:** v2.0+ (encanamento v3.0)
 **Harmonizado com:** checklist-validacao-agent.md v1.3
-**Atualizado em:** 2026-01-22
+**Atualizado em:** 2026-07-04

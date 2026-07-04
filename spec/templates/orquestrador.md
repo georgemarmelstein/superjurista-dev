@@ -1,8 +1,22 @@
-# Template: Orquestrador (Command) v2.1 - Injeção de Contexto
+# Template: Orquestrador (Command) v3.0 - Injeção de Contexto + Gate por Script
 
 > **Filosofia:** Orquestrador fornece contexto ($ARGUMENTS) aos agents modulares.
 >
 > **Copie para:** `.claude/commands/[nome-pipeline].md`
+>
+> **O que mudou na v3.0 (o encanamento, não a filosofia):**
+> 1. **Saída em disco + status de 1 linha** — o subagente GRAVA o documento (Write) e responde
+>    só "etapa OK | arquivo"; NUNCA ecoa o documento inline (L5).
+> 2. **Retomada por varredura** — a Etapa 0 roda o gate (`verificar_<sistema>.py`); a linha
+>    `PENDENTES:` É o plano; etapa já válida não roda de novo (L13).
+> 3. **Validação por script** — âncoras normalizadas (acento/caixa) conferidas por
+>    `verificar_<sistema>.py --etapa/--gate`; o orquestrador NUNCA lê o documento para validar (L14).
+> 4. **Merge/handoff por script** — conteúdo nunca passa pelo contexto (`merge_<sistema>.py`).
+>
+> **Andaimes MORTOS (era 200k):** "NUNCA em paralelo" (pipelines de PROCESSOS distintos podem
+> rodar em paralelo), "leia em blocos"/chunking defensivo, "/clear entre processos".
+> **Filosofia PRESERVADA:** orquestrador cego, injeção de $WORKSPACE, "Passo 1 = Read do agente",
+> contratos por tipo, tools mínimas, TodoWrite exclusivo do orquestrador.
 
 ---
 
@@ -12,8 +26,8 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  ORQUESTRADOR (conhece o contexto)                                          │
 │                                                                             │
-│  1. Recebe: $ARGUMENTS = "processo-12345"                                   │
-│  2. Calcula: WORKSPACE = "workspace/processo-12345"                         │
+│  1. Recebe: $ARGUMENTS = "0814624-28.2019.4.05.8100"                        │
+│  2. Calcula: WORKSPACE = "data/sentenca/0814624-28.2019.4.05.8100"          │
 │  3. Injeta: Passa WORKSPACE para cada subagente                             │
 │                                                                             │
 │  ┌───────────────────┐     ┌───────────────────┐     ┌───────────────────┐ │
@@ -40,13 +54,13 @@ allowed-tools: Read Task Bash TodoWrite
 ---
 
 <identidade>
-  <papel>Coordenador do pipeline de [nome], não executor</papel>
-  <estilo>Metódico, sequencial, validador rigoroso</estilo>
+  <papel>Coordenador do pipeline de [nome], não executor — despacha, valida por script e retoma</papel>
+  <estilo>Metódico, sequencial, validador rigoroso; nada de conteúdo pesado no próprio contexto</estilo>
 </identidade>
 
 <proposito>
-  <objetivo>Transformar [entrada] em [saída] através de [N] etapas controladas</objetivo>
-  <razao>[Justificativa do pipeline]</razao>
+  <objetivo>Transformar [entrada] em [saída] através de [N] etapas controladas, retomáveis e validadas por script</objetivo>
+  <razao>Cada etapa validada de forma determinística; falha no meio não repaga o que já foi feito (retrabalho em opus é o desperdício mais caro)</razao>
   <resultado_final>[Descrição do artefato final]</resultado_final>
 </proposito>
 
@@ -54,10 +68,10 @@ allowed-tools: Read Task Bash TodoWrite
   <tools_orquestrador>
     | Tool | Função | Quando Usar |
     |------|--------|-------------|
-    | Task | Disparar subagentes | Cada etapa do pipeline |
-    | Read | Verificar arquivos | Validação pré/pós etapa |
-    | Bash | Operações de sistema | Copiar, mover, criar pastas |
+    | Bash | Gate/retomada (verificar_<sistema>.py), merge (merge_<sistema>.py), test -f | Etapa 0, validação de todas |
+    | Task | Disparar subagentes | Etapas com agente (só as PENDENTES) |
     | TodoWrite | Rastrear progresso | Início e transições de etapa |
+    | Read | EXCEÇÃO rara: diagnosticar falha persistente | NUNCA para validar rotina (L14) |
   </tools_orquestrador>
 
   <tools_subagentes>
@@ -98,22 +112,34 @@ allowed-tools: Read Task Bash TodoWrite
   </tools_subagentes>
 
   <regras_uso>
-    - Subagentes LEEM prompts diretamente (não recebem cópia)
-    - Orquestrador NÃO executa tarefas dos subagentes
-    - Orquestrador NÃO lê o prompt: instrui subagente a ler via Read
-    - Cada subagente tem contexto ISOLADO (não vê conversa anterior)
+    - RETOMADA (L13): a varredura da Etapa 0 lista PENDENTES — só as pendentes rodam. Primeira rodada e retomada pós-falha são a MESMA operação: rodar o que a varredura listar.
+    - CONDUZIR POR CAMINHO: o orquestrador passa paths; o subagente lê a entrada (Read) e GRAVA o documento no arquivo (Write). O documento NUNCA volta inline na resposta (L5).
+    - RESPOSTA DE UMA LINHA: cada subagente responde apenas "<etapa> OK | <arquivo>" — quem confere o conteúdo é o script, não o orquestrador lendo.
+    - VALIDAÇÃO POR SCRIPT (L14): nunca validar lendo o documento; sempre `python scripts/verificar_<sistema>.py "$WORKSPACE" --etapa <nome>` (exit 0 = válida).
+    - Subagentes LEEM o próprio prompt via Read (não recebem cópia); o orquestrador não copia a capacidade deles.
+    - Cada subagente tem contexto ISOLADO (não vê conversa anterior).
+    - Etapas de UM pipeline são sequenciais ENTRE SI; pipelines de PROCESSOS distintos são independentes e podem rodar em paralelo (não existe "um por vez" entre processos).
   </regras_uso>
+
+  <scripts_deterministicos>
+    | Script | Função |
+    |--------|--------|
+    | scripts/verificar_<sistema>.py | Gate + retomada: varredura (PENDENTES), --etapa (exit-coded), --gate (final) |
+    | scripts/merge_<sistema>.py | Merge por script (quando há concatenação pura): sem LLM, sem contexto |
+  </scripts_deterministicos>
 </capacidades>
 
 <restricoes>
   <orquestrador>
-    - NUNCA executar etapas em paralelo (exceto quando explícito)
+    - As etapas de UM pipeline são sequenciais ENTRE SI (cada uma consome a anterior); pipelines de PROCESSOS distintos são independentes e PODEM rodar em paralelo (um Task de pipeline por processo)
+    - NUNCA ler o documento gerado para validar — validação é do script (L14); Read é exceção de diagnóstico, jamais rotina
+    - NUNCA redespachar etapa que o gate deu como válida (o trabalho já foi pago — L13)
     - NUNCA copiar/resumir prompts — instrua subagente a LER
-    - NUNCA prosseguir sem validar etapa anterior
-    - NUNCA ignorar sinalizadores de formato ausentes
-    - NUNCA tentar mais de 2 vezes a mesma etapa
+    - NUNCA prosseguir com etapa cuja anterior está pendente/inválida
+    - NUNCA tentar mais de 2 vezes a mesma etapa — na 2ª falha, PARAR e reportar o output do gate
     - NUNCA criar prompts inline > 50 linhas OU não estruturados
     - NUNCA criar prompt sem "Passo 1: Read: .claude/agents/[agent].md"
+    - NUNCA fazer merge no próprio contexto — é o merge_<sistema>.py
     - SEMPRE estruturar prompt: cabeçalho ═══ + passos numerados + restrições
   </orquestrador>
 
@@ -121,39 +147,42 @@ allowed-tools: Read Task Bash TodoWrite
     - NUNCA inventar dados não presentes na entrada
     - NUNCA remover acentos do português
     - NUNCA usar markdown no corpo (asteriscos, hashtags)
+    - NUNCA imprimir o documento na resposta — o documento vai no ARQUIVO (Write); responder só a linha de status (L5)
     - NUNCA usar TodoWrite (apenas orquestrador gerencia progresso)
   </subagentes>
 </restricoes>
 
 <contingencias>
-  <output_vazio>
-    ERRO CRÍTICO: Subagente não salvou arquivo.
-    → Verificar se path está correto
-    → Regenerar com prompt idêntico
-    → Se falhar 2x → PARAR e informar usuário
-  </output_vazio>
+  <etapa_invalida>
+    Gate acusa [AUSENTE]/[INVALIDA] após o despacho → redespachar a MESMA etapa com o
+    motivo do gate anexado ao prompt (máx 2 tentativas; depois PARAR e reportar o output
+    do gate ao usuário).
+  </etapa_invalida>
 
-  <sinalizador_ausente>
-    AVISO: Sinalizador não encontrado.
-    → Regenerar com SUFIXO DE CORREÇÃO específico
-    → Se falhar 2x → PARAR e informar usuário
-  </sinalizador_ausente>
+  <falha_de_entrada>
+    merge_<sistema>.py (ou o handoff) acusa entrada inválida → o defeito é da etapa
+    anterior, não do merge; voltar à etapa apontada.
+  </falha_de_entrada>
 
   <limite_tentativas>
     | Escopo | Limite |
     |--------|--------|
     | Por etapa | 2 tentativas |
-    | Total no pipeline | [N×2] tentativas |
+    | Total no pipeline | na 2ª falha de uma etapa, o pipeline PARA com o diagnóstico do gate (não silencia) |
   </limite_tentativas>
 </contingencias>
 
 <contratos_dados>
-  | # | Etapa | Entrada | Saída | Validação |
-  |---|-------|---------|-------|-----------|
-  | 0 | Preparação | $ARGUMENTS | [VARS] | Variáveis extraídas |
-  | 1 | [Nome] | [input] | [output] | [sinalizadores] |
-  | 2 | [Nome] | [input] | [output] | [sinalizadores] |
-  | 3 | [Nome] | [input] | [output] | [sinalizadores] |
+  | # | Etapa | Agente/Script | Entrada | Saída | Validação |
+  |---|-------|---------------|---------|-------|-----------|
+  | 0 | Preparação | — | $ARGUMENTS | $WORKSPACE + PENDENTES | gate varredura (o plano) |
+  | 1 | [Nome] | .claude/agents/[cat]/[agent].md | $WORKSPACE/[input] | $WORKSPACE/$NUMERO-[out].md | verificar --etapa <n> → 0 |
+  | 2 | [Nome] | .claude/agents/[cat]/[agent].md | [input] | [output] | verificar --etapa <n> → 0 |
+  | M | Merge | — (script) | [saídas parciais] | [artefato unificado] | merge_<sistema>.py → 0 |
+  | N | Finalização | — | tudo | resumo ao usuário | verificar --gate → 0 |
+
+  As âncoras de início/fim/seções de cada etapa vivem CODIFICADAS no verificar_<sistema>.py
+  (fonte única) — este arquivo não as duplica.
 </contratos_dados>
 
 <rastreamento_progresso>
@@ -172,19 +201,20 @@ allowed-tools: Read Task Bash TodoWrite
   <quando_atualizar>
     | Momento | Ação |
     |---------|------|
-    | Início do pipeline | Criar TodoWrite com TODAS as etapas (status: pending) |
-    | Antes de disparar etapa | Marcar etapa como in_progress |
-    | Após validar output | Marcar etapa como completed |
-    | Se falhar 2x | Marcar como failed (se suportado) ou manter in_progress |
+    | Início do pipeline (Etapa 0) | Criar TodoWrite com TODAS as etapas — as já válidas no gate NASCEM `completed` (retomada) |
+    | Antes de disparar etapa PENDENTE | Marcar etapa como in_progress |
+    | Após validar output pelo gate (--etapa → 0) | Marcar etapa como completed |
+    | Se falhar 2x | PARAR e reportar o output do gate |
   </quando_atualizar>
 
   <formato_todowrite>
     ```javascript
+    // As já válidas na varredura da Etapa 0 nascem "completed" (retomada — L13)
     TodoWrite([
       {content: "Etapa 0 - Preparação", status: "completed", activeForm: "Preparando"},
-      {content: "Etapa 1 - [Nome]", status: "in_progress", activeForm: "[Verbo]ando"},
-      {content: "Etapa 2 - [Nome]", status: "pending", activeForm: "[Verbo]ando"},
-      {content: "Etapa 3 - [Nome]", status: "pending", activeForm: "[Verbo]ando"},
+      {content: "Etapa 1 - [Nome]", status: <pendente? "pending" : "completed">, activeForm: "[Verbo]ando"},
+      {content: "Etapa 2 - [Nome]", status: <pendente? "pending" : "completed">, activeForm: "[Verbo]ando"},
+      {content: "Etapa N - Finalização", status: "pending", activeForm: "Finalizando"},
     ])
     ```
   </formato_todowrite>
@@ -199,18 +229,29 @@ allowed-tools: Read Task Bash TodoWrite
 </rastreamento_progresso>
 
 <sinalizadores_formato>
-  | Etapa | Início Obrigatório | Fim Obrigatório |
-  |-------|-------------------|-----------------|
-  | 1 | "[INICIO_1]" | "[FIM_1]" |
-  | 2 | "[INICIO_2]" | "[FIM_2]" |
-  | 3 | "[INICIO_3]" | "[FIM_3]" |
+  <!--
+    As âncoras de início/fim/seções de cada etapa vivem CODIFICADAS no verificar_<sistema>.py
+    (fonte única). O orquestrador NÃO as confere lendo o documento — roda o gate por script,
+    que normaliza acento/caixa. Esta tabela apenas espelha, para leitura humana, o que o gate exige.
+  -->
+  | Etapa | Início (âncora do gate) | Fim (âncora do gate) | Conferência |
+  |-------|-------------------------|----------------------|-------------|
+  | 1 | "[INICIO_1]" | "[FIM_1]" | verificar --etapa <n> → 0 |
+  | 2 | "[INICIO_2]" | "[FIM_2]" | verificar --etapa <n> → 0 |
+  | 3 | "[INICIO_3]" | "[FIM_3]" | verificar --etapa <n> → 0 |
 </sinalizadores_formato>
 
 <sufixos_correcao>
-  <sufixo_formato>
-    [FALHA DE FORMATO. Releia o prompt em .claude/agents/[pipeline]/[agent].md.
-    DEVE começar com "[INICIO]". DEVE terminar com "[FIM]".]
-  </sufixo_formato>
+  <sufixo_gate>
+    [FALHA NO GATE. O documento gravado não passou em verificar_<sistema>.py --etapa <n>:
+    <motivo do gate>. Corrija o ARQUIVO (abra com o marcador de início, feche com o de fim,
+    inclua as seções obrigatórias, use acentos) e REGRAVE — não ecoe o conteúdo.]
+  </sufixo_gate>
+
+  <sufixo_eco>
+    [FALHA DE CONTRATO. Você imprimiu o documento na resposta. GRAVE-o com Write no caminho
+    indicado e responda APENAS uma linha de status ("<etapa> OK | <arquivo>"); não ecoe o conteúdo (L5).]
+  </sufixo_eco>
 
   <sufixo_acentos>
     [FALHA DE ACENTOS. Use acentos do português: é, á, ã, ç, ô, ê, í, ú.
@@ -234,8 +275,10 @@ allowed-tools: Read Task Bash TodoWrite
     |----------|--------|-----|
     | $ARGUMENTS | Usuário | Identificador do processo (ex: "0814624-28.2019.4.05.8100") |
     | $NUMERO | Calculada | Número do processo para prefixo de arquivos |
-    | $WORKSPACE | Calculada | Caminho completo (ex: "workspace/processo-0814624-28.2019.4.05.8100") |
-    | $MANIFEST | Calculada | Caminho do manifest (ex: "$WORKSPACE/_manifest.md") |
+    | $WORKSPACE | Calculada | Caminho da pasta do processo (ex: "data/sentenca/0814624-28.2019.4.05.8100") |
+
+    O filesystem É o manifesto — não há $MANIFEST/_manifest.md. O que já existe e passa no
+    gate É o estado do pipeline; a varredura da Etapa 0 lê esse estado (PENDENTES).
   </variaveis_injetadas>
 
   <convencao_nomenclatura>
@@ -271,10 +314,10 @@ allowed-tools: Read Task Bash TodoWrite
   <!-- ETAPA 0: PREPARAÇÃO                                             -->
   <!-- ═══════════════════════════════════════════════════════════════ -->
 
-  <etapa numero="0" nome="Preparação e Injeção de Contexto">
+  <etapa numero="0" nome="Preparação, gate e retomada">
     <!--
-      ETAPA CRÍTICA: Calcula variáveis que serão injetadas nos subagentes.
-      Subagentes NÃO conhecem $ARGUMENTS - só recebem caminhos prontos.
+      ETAPA CRÍTICA: Calcula variáveis, RODA O GATE (varredura → PENDENTES é o plano) e
+      cria o TodoWrite. Subagentes NÃO conhecem $ARGUMENTS - só recebem caminhos prontos.
     -->
 
     <acao_orquestrador>
@@ -286,39 +329,31 @@ allowed-tools: Read Task Bash TodoWrite
 
       2. **Calcular variáveis de contexto:**
          ```
-         $NUMERO    = $ARGUMENTS (ou extrair número do caminho)
-         $WORKSPACE = "workspace/processo-$NUMERO"
-         $MANIFEST  = "$WORKSPACE/_manifest.md"
+         $NUMERO    = $ARGUMENTS (ou extrair o padrão CNJ do nome da pasta)
+         $WORKSPACE = "data/<tipo>/$NUMERO"   (ex.: data/sentenca/0814624-28.2019.4.05.8100)
          ```
+         (O filesystem é o manifesto — não há $MANIFEST/_manifest.md.)
 
-      3. **Verificar/criar estrutura de workspace:**
+      3. **Verificar se a ENTRADA do pipeline existe:**
          ```bash
-         # Criar pasta se não existir
-         mkdir -p $WORKSPACE
-         mkdir -p $WORKSPACE/fonte
-         mkdir -p $WORKSPACE/pesquisa
-         mkdir -p $WORKSPACE/revisao
-
-         # Se existir _manifest.md, ler para saber o que já existe
-         # Se não existir, criar estrutura inicial
+         test -f "$WORKSPACE/[arquivo-de-entrada]"   # ex.: processo.txt
+         # Se faltar → PARAR (a entrada do pipeline não existe).
          ```
 
-      4. **Usar convenção de nomenclatura:**
+      4. **Rodar o GATE — varredura (retomada):**
+         ```bash
+         python scripts/verificar_<sistema>.py "$WORKSPACE"
          ```
-         # Arquivos de saída seguem: $NUMERO-tipo.md
-         # Exemplo: 0814624-28.2019.4.05.8100-relatorio.md
-         ```
+         → A linha `PENDENTES: ...` É o plano de execução. Tudo "(nenhuma)" → pular direto à
+         Finalização (o pipeline já estava completo). Reportar ao usuário o que será PULADO
+         por já estar válido. Primeira rodada e retomada pós-falha são a MESMA operação.
 
-      5. **Verificar se entrada existe:**
-         - Se pipeline precisa de arquivo de entrada, verificar em $WORKSPACE
-         - Se não existir, PARAR e informar usuário
-
-      6. **Criar TodoWrite com todas as etapas:**
+      5. **Criar TodoWrite com todas as etapas** — as já VÁLIDAS na varredura nascem `completed`:
          ```javascript
          TodoWrite([
-           {content: "Etapa 0 - Preparação", status: "in_progress", activeForm: "Preparando"},
-           {content: "Etapa 1 - [Nome]", status: "pending", activeForm: "[Verbo]ando"},
-           {content: "Etapa 2 - [Nome]", status: "pending", activeForm: "[Verbo]ando"},
+           {content: "Etapa 0 - Preparação", status: "completed", activeForm: "Preparando"},
+           {content: "Etapa 1 - [Nome]", status: <pendente? "pending" : "completed">, activeForm: "[Verbo]ando"},
+           {content: "Etapa 2 - [Nome]", status: <pendente? "pending" : "completed">, activeForm: "[Verbo]ando"},
            {content: "Etapa N - Finalização", status: "pending", activeForm: "Finalizando"},
          ])
          ```
@@ -327,24 +362,21 @@ allowed-tools: Read Task Bash TodoWrite
     <variaveis_calculadas>
       | Variável | Valor Exemplo | Disponível para |
       |----------|---------------|-----------------|
-      | $ARGUMENTS | "12345" | Apenas Etapa 0 |
-      | $WORKSPACE | "workspace/processo-12345" | Todas as etapas |
-      | $MANIFEST | "workspace/processo-12345/_manifest.md" | Todas as etapas |
+      | $ARGUMENTS | "0814624-28.2019.4.05.8100" | Apenas Etapa 0 |
+      | $NUMERO | "0814624-28.2019.4.05.8100" | Todas as etapas |
+      | $WORKSPACE | "data/sentenca/0814624-28.2019.4.05.8100" | Todas as etapas |
     </variaveis_calculadas>
 
     <criterio_sucesso>
-      - [ ] $ARGUMENTS válido
-      - [ ] $WORKSPACE calculado
-      - [ ] Pasta $WORKSPACE existe
-      - [ ] Arquivo de entrada existe (se necessário)
-      - [ ] TodoWrite criado com todas as etapas
+      - [ ] $ARGUMENTS válido; $WORKSPACE e $NUMERO calculados
+      - [ ] Arquivo de entrada existe (test -f)
+      - [ ] Gate rodou; PENDENTES conhecidas (o plano)
+      - [ ] TodoWrite criado — etapas já válidas nascem completed
     </criterio_sucesso>
 
     <transicao>
-      1. Marcar Etapa 0 como completed
-      2. Marcar Etapa 1 como in_progress
-      3. Prosseguir para ETAPA 1
-      Se FALHAR → PARAR e informar usuário
+      Ir para a PRIMEIRA etapa PENDENTE (na ordem). Se PENDENTES = (nenhuma) → Finalização.
+      Se FALHAR → PARAR e informar usuário.
     </transicao>
   </etapa>
 
@@ -358,16 +390,18 @@ allowed-tools: Read Task Bash TodoWrite
       <tools>Read Write</tools>
       <agent>.claude/agents/[nome-agent].md</agent>
       <entrada>$WORKSPACE/[arquivo-entrada]</entrada>
-      <saida>$WORKSPACE/[arquivo-saida]</saida>
+      <saida>$WORKSPACE/$NUMERO-[saida].md</saida>
+      <slug>[slug-etapa]</slug>
     </config>
 
+    <retomada>Se "[slug-etapa]" NÃO está em PENDENTES (varredura da Etapa 0) → PULAR (não despachar; o trabalho já foi pago).</retomada>
+
     <acao_orquestrador>
-      1. Verificar se arquivo de entrada existe em $WORKSPACE
-      2. **Montar prompt com variáveis injetadas** (ver abaixo)
-      3. Disparar Task tool com prompt montado
-      4. Aguardar conclusão
-      5. Validar output
-      6. Atualizar TodoWrite (etapa atual → completed, próxima → in_progress)
+      1. **Montar prompt-invólucro com variáveis já substituídas** (ver abaixo)
+      2. Disparar Task tool com o prompt montado (só se a etapa está em PENDENTES)
+      3. Aguardar a linha de status do subagente
+      4. **Validar por SCRIPT:** `python scripts/verificar_<sistema>.py "$WORKSPACE" --etapa [slug-etapa]` (exit 0 = válida)
+      5. Atualizar TodoWrite (etapa atual → completed)
     </acao_orquestrador>
 
     <!--
@@ -375,8 +409,8 @@ allowed-tools: Read Task Bash TodoWrite
       ═══════════════════════════════════════════════════════════════════════
       O orquestrador SUBSTITUI as variáveis $WORKSPACE antes de enviar.
 
-      Exemplo: Se $WORKSPACE = "workspace/processo-12345"
-      O subagente recebe: "Read: workspace/processo-12345/relatorio.md"
+      Exemplo: Se $WORKSPACE = "data/sentenca/0814624-28.2019.4.05.8100"
+      O subagente recebe: "Read: data/sentenca/0814624-28.2019.4.05.8100/relatorio.md"
       O subagente NÃO recebe: "Read: $WORKSPACE/relatorio.md"
     -->
 
@@ -404,8 +438,7 @@ allowed-tools: Read Task Bash TodoWrite
 
         <passo numero="2" nome="Ler entrada">
           Read: $WORKSPACE/[arquivo-entrada]
-          → O orquestrador já substituiu $WORKSPACE pelo caminho real.
-          → Leia INTEGRALMENTE.
+          → O orquestrador já substituiu $WORKSPACE pelo caminho real. Leia a entrada por caminho.
         </passo>
 
         <passo numero="3" nome="Executar tarefa">
@@ -413,15 +446,20 @@ allowed-tools: Read Task Bash TodoWrite
           → Use português COM ACENTOS
         </passo>
 
-        <passo numero="4" nome="Salvar">
-          Write: $WORKSPACE/[arquivo-saida]
+        <passo numero="4" nome="Gravar o documento">
+          Write: $WORKSPACE/$NUMERO-[saida].md
+          → GRAVE o documento COMPLETO, com os marcadores de início/fim e as seções obrigatórias.
           → O orquestrador já substituiu $WORKSPACE pelo caminho real.
+        </passo>
+
+        <passo numero="5" nome="Responder status">
+          → Responder APENAS: "[slug-etapa] OK | $NUMERO-[saida].md" — NÃO imprimir o documento.
         </passo>
       </execucao>
 
       <restricoes>
-        - DEVE começar com "[SINALIZADOR_INICIO]"
-        - DEVE terminar com "[SINALIZADOR_FIM]"
+        - GRAVAR o documento com "[SINALIZADOR_INICIO]" e "[SINALIZADOR_FIM]" (âncoras do gate)
+        - NÃO imprimir o documento na resposta — responder só a linha de status (L5)
         - SEM asteriscos, SEM hashtags
         - NUNCA usar TodoWrite (apenas orquestrador gerencia)
       </restricoes>
@@ -429,25 +467,43 @@ allowed-tools: Read Task Bash TodoWrite
     </prompt_subagente>
 
     <validacao>
-      | # | Verificação | Se Falhar |
-      |---|-------------|-----------|
-      | 1 | Arquivo existe | ERRO: não salvou |
-      | 2 | Tamanho > 0 | ERRO: arquivo vazio |
-      | 3 | Sinalizador início | REGENERAR + Sufixo |
-      | 4 | Sinalizador fim | REGENERAR + Sufixo |
-      | 5 | Contém acentos | REGENERAR + Sufixo |
+      Bash: `python scripts/verificar_<sistema>.py "$WORKSPACE" --etapa [slug-etapa]`
+      | Exit-code | Significado | Ação |
+      |-----------|-------------|------|
+      | 0 | [OK] etapa válida | Prosseguir |
+      | 1 | [AUSENTE]/[INVALIDA] | REGENERAR com sufixo_gate (o motivo do gate anexado) — máx 2x |
+      O orquestrador NÃO lê o documento para validar (L14).
     </validacao>
 
     <criterio_sucesso>
-      - [ ] Arquivo criado
-      - [ ] Sinalizadores presentes
-      - [ ] Acentos presentes
+      - [ ] Subagente respondeu só a linha de status (documento NÃO ecoado)
+      - [ ] Gate --etapa [slug-etapa] retornou 0
     </criterio_sucesso>
 
     <transicao>
-      Se OK → ETAPA 2
-      Se FALHAR 2x → PARAR
+      Se gate 0 → próxima etapa PENDENTE
+      Se FALHAR 2x → PARAR e reportar o output do gate
     </transicao>
+  </etapa>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ETAPA M: MERGE (script, sem LLM) — quando há concatenação pura    -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+
+  <etapa numero="M" nome="Merge (script, sem LLM)">
+    <!--
+      Só quando o artefato final é concatenação/validação de saídas parciais (ex.:
+      relatório + fundamentação → sentença). Merge PURO é determinístico: um SCRIPT
+      concatena/valida sem passar o conteúdo pelo contexto do orquestrador.
+      Quando houver JUÍZO EDITORIAL (não só concatenar), use um subagente de merge.
+    -->
+    <retomada>Se "[slug-merge]" NÃO está em PENDENTES E nenhuma entrada do merge rodou nesta execução → PULAR. Se uma entrada foi regenerada agora, o merge RODA de novo (o artefato antigo está desatualizado).</retomada>
+    <acao_orquestrador>
+      Bash: `python scripts/merge_<sistema>.py "$WORKSPACE"`
+      → concatena, grava e valida o artefato unificado sem passar conteúdo pelo contexto.
+      Exit 1 com "entrada inválida" → voltar à etapa apontada (contingência falha_de_entrada).
+    </acao_orquestrador>
+    <transicao>Exit 0 → Finalização.</transicao>
   </etapa>
 
   <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -456,7 +512,9 @@ allowed-tools: Read Task Bash TodoWrite
 
   <etapa numero="N" nome="Finalização">
     <acao_orquestrador>
-      Exibir ao usuário:
+      1. **Gate final:** `python scripts/verificar_<sistema>.py "$WORKSPACE" --gate`
+         (exit 1 → algo regrediu; reportar o output e PARAR).
+      2. Exibir ao usuário:
 
       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       PIPELINE [NOME] - Concluído
@@ -464,10 +522,10 @@ allowed-tools: Read Task Bash TodoWrite
 
       Entrada: [entrada original]
 
-      Arquivos gerados:
+      Arquivos (marcar REAPROVEITADO da execução anterior vs gerado agora):
         ✓ [arquivo-1] (ETAPA 1)
         ✓ [arquivo-2] (ETAPA 2)
-        ✓ [arquivo-final] (ETAPA N)
+        ✓ [arquivo-final] (ETAPA M — merge)
 
       Localização: [caminho completo]
 
@@ -477,36 +535,62 @@ allowed-tools: Read Task Bash TodoWrite
 
 </etapas_pipeline>
 
+<gate_do_pipeline>
+  <!--
+    Todo pipeline gerado acompanha scripts/verificar_<sistema>.py, que importa o motor
+    genérico scripts/verificar_pipeline.py e declara só a tabela ETAPAS (âncoras). É esse
+    gate que faz a retomada (varredura → PENDENTES), a validação (--etapa) e o portão final (--gate).
+  -->
+  ```python
+  import os, sys
+  sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+  from verificar_pipeline import rodar_cli   # motor genérico (scripts/verificar_pipeline.py)
+
+  ETAPAS = {
+      # etapa: (sufixo_do_arquivo, inicio, fim, contem[], minimo_chars)
+      "[slug-etapa-1]": ("-[slug1].md", "[âncora de início]", "[âncora de fim]",
+                         ["[seção obrigatória]"], 500),
+      # `fim` pode ser tupla p/ fim alternativo: ("juiz federal", "juíza federal", ...)
+  }
+
+  if __name__ == "__main__":
+      rodar_cli(ETAPAS, titulo="<nome-sistema>")
+  ```
+
+  **Calibragem das âncoras (crítico):** as âncoras de `ETAPAS` DEVEM casar com os
+  `<sinalizadores>` reais dos agentes que geram cada arquivo. Havendo artefato real em
+  `data/`, confira `head`/`tail` dele e ajuste antes de fixar. O motor normaliza acento/caixa
+  dos dois lados, então escreva as âncoras com acentos naturais.
+</gate_do_pipeline>
+
 <resumo_arquitetura>
-PIPELINE [NOME] - Arquitetura de Injeção de Contexto
+PIPELINE [NOME] v3.0 — por caminho + gate determinístico + retomada
 │
-├── ETAPA 0: Preparação e Injeção
+├── ETAPA 0: Preparação, gate e retomada
 │   ├── Recebe: $ARGUMENTS do usuário
-│   ├── Calcula: $WORKSPACE = "workspace/processo-$ARGUMENTS"
-│   ├── Cria: Estrutura de pastas se necessário
-│   └── Valida: Entrada existe
+│   ├── Calcula: $WORKSPACE = "data/<tipo>/$NUMERO"
+│   ├── test -f entrada; roda verificar_<sistema>.py → PENDENTES (o plano)
+│   └── TodoWrite: etapas já válidas nascem completed
 │
-├── ETAPA 1: [Nome]
-│   ├── Agent: .claude/agents/[nome-agent].md (capacidade)
-│   ├── Entrada: $WORKSPACE/[arquivo] (injetado pelo orquestrador)
-│   ├── Saída: $WORKSPACE/[arquivo] (injetado pelo orquestrador)
-│   └── Sinalizadores: "[INICIO]" ... "[FIM]"
+├── ETAPA 1: [Nome]  [Task] ─┐
+├── ETAPA 2: [Nome]  [Task]  │ cada uma: PULA se válida (retomada);
+├── ETAPA 3: [Nome]  [Task] ─┘ GRAVA arquivo; responde 1 linha; gate --etapa valida
 │
-├── ETAPA 2: [Nome]
-│   ├── Agent: .claude/agents/[nome-agent].md (capacidade)
-│   ├── Entrada: $WORKSPACE/[arquivo] (saída da etapa anterior)
-│   ├── Saída: $WORKSPACE/[arquivo]
-│   └── Sinalizadores: "[INICIO]" ... "[FIM]"
+├── ETAPA M: Merge  [SCRIPT]  → merge_<sistema>.py (zero contexto)  (quando aplicável)
 │
-└── ETAPA N: Finalização
-    └── Orquestrador exibe resumo com caminhos completos
+└── ETAPA N: Finalização: verificar_<sistema>.py --gate + resumo (REAPROVEITADO vs gerado)
+
+Princípios v3.0: o documento vive no ARQUIVO (nunca na conversa — L5); a validação é do
+SCRIPT (âncoras com acento/caixa normalizados — fonte única em verificar_<sistema>.py — L14);
+PENDENTES é o plano (1ª rodada e retomada são a mesma operação — L13). Vários processos =
+pipelines independentes em paralelo.
 
 FLUXO DE DADOS:
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │   $ARGUMENTS │────▶│  ORQUESTRADOR│────▶│  SUBAGENTES  │
 │  (usuário)   │     │  (calcula    │     │  (recebem    │
-│              │     │   $WORKSPACE)│     │   caminhos   │
-│              │     │              │     │   prontos)   │
+│              │     │   $WORKSPACE, │     │   caminhos;  │
+│              │     │   roda gate) │     │   gravam)    │
 └──────────────┘     └──────────────┘     └──────────────┘
 </resumo_arquitetura>
 
@@ -514,26 +598,26 @@ FLUXO DE DADOS:
 Antes de iniciar, verificar:
 
 **Arquitetura:**
-- [ ] Identidade: Sou coordenador, não executor
-- [ ] Propósito: Transformar [entrada] em [saída]
-- [ ] Capacidades: Task, Read, Bash, TodoWrite (não Write direto)
+- [ ] Identidade: Sou coordenador, não executor — despacho, valido por script e retomo
+- [ ] Propósito: Transformar [entrada] em [saída], retomável e validado por script
+- [ ] Capacidades: Bash (gate/merge), Task, TodoWrite; Read só como exceção de diagnóstico
 
 **Injeção de Contexto:**
-- [ ] $ARGUMENTS será recebido do usuário na Etapa 0?
-- [ ] $WORKSPACE será calculado a partir de $ARGUMENTS?
+- [ ] $ARGUMENTS recebido na Etapa 0; $WORKSPACE = "data/<tipo>/$NUMERO"?
 - [ ] Subagentes recebem caminhos PRONTOS, não variáveis?
 - [ ] Agents são modulares (sem caminhos hardcoded)?
 
-**Validação:**
-- [ ] Restrições: Sequencial, validar cada etapa, max 2 tentativas
-- [ ] Contingências: Sufixos de correção prontos
-- [ ] Contratos: Entrada/saída de cada etapa definidos
-- [ ] Sinalizadores: Validar início/fim de cada output
+**Retomada e Validação (v3.0):**
+- [ ] Etapa 0 roda o gate → PENDENTES é o plano; etapas válidas nascem completed?
+- [ ] Cada etapa tem cláusula <retomada> (pula se não está em PENDENTES)?
+- [ ] Validação por SCRIPT (verificar_<sistema>.py --etapa), nunca lendo o documento (L14)?
+- [ ] Subagente GRAVA o documento e responde só 1 linha; nada ecoado inline (L5)?
+- [ ] Merge puro por script (merge_<sistema>.py); Finalização com --gate?
+- [ ] Circuit breaker: máx 2 tentativas por etapa, depois PARAR com o output do gate?
 
 **Rastreamento:**
-- [ ] TodoWrite criado na Etapa 0 com todas as etapas
-- [ ] Atualizado a cada transição (in_progress → completed)
-- [ ] Subagentes NUNCA usam TodoWrite
+- [ ] TodoWrite criado na Etapa 0 com todas as etapas (válidas já completed)?
+- [ ] Atualizado a cada transição; subagentes NUNCA usam TodoWrite?
 </checklist_orquestrador>
 ```
 
@@ -558,25 +642,27 @@ Antes de iniciar, verificar:
 | `<capacidades>` | Tools e regras de uso |
 | `<restricoes>` | O que NÃO pode fazer |
 | `<contingencias>` | Tratamento de erros |
-| `<contratos_dados>` | Tabela entrada/saída |
-| `<rastreamento_progresso>` | Padrão TodoWrite para rastrear etapas |
-| `<sinalizadores_formato>` | Validação por etapa |
-| `<sufixos_correcao>` | Mensagens para retry |
+| `<contratos_dados>` | Tabela entrada/saída (com validação por gate) |
+| `<rastreamento_progresso>` | Padrão TodoWrite para rastrear etapas (válidas nascem completed) |
+| `<sinalizadores_formato>` | Espelha as âncoras do gate (fonte única no verificar_<sistema>.py) |
+| `<sufixos_correcao>` | Mensagens para retry (sufixo_gate, sufixo_eco) |
 | `<configuracao>` | Variáveis injetadas e agents utilizados |
-| `<etapas_pipeline>` | Definição de cada etapa |
-| `<resumo_arquitetura>` | Visão geral do fluxo com injeção de contexto |
+| `<etapas_pipeline>` | Definição de cada etapa (com <retomada>) |
+| `<gate_do_pipeline>` | Esqueleto do verificar_<sistema>.py (importa o motor, declara ETAPAS) |
+| `<resumo_arquitetura>` | Visão geral do fluxo com injeção de contexto + gate/retomada |
 | `<checklist_orquestrador>` | Verificação pré-execução |
 
 ### Subtags de `<etapa>`
 
 | Tag | Descrição |
 |-----|-----------|
-| `<config>` | Modelo, tools, agent, entrada e saída (com $WORKSPACE) |
+| `<config>` | Modelo, tools, agent, entrada, saída e `<slug>` (com $WORKSPACE) |
+| `<retomada>` | Pula a etapa se o slug NÃO está em PENDENTES (L13) |
 | `<acao_orquestrador>` | O que o orquestrador faz |
-| `<prompt_subagente>` | Prompt com variáveis já substituídas |
-| `<validacao>` | Regras de validação |
+| `<prompt_subagente>` | Prompt com variáveis já substituídas (grava + responde 1 linha) |
+| `<validacao>` | Bash: verificar_<sistema>.py --etapa (exit-coded), nunca por leitura |
 | `<criterio_sucesso>` | Checklist de conclusão |
-| `<transicao>` | Próxima etapa ou condição de parada |
+| `<transicao>` | Próxima etapa PENDENTE ou condição de parada |
 
 ### Diferença v1 → v2
 
@@ -601,7 +687,7 @@ VOCÊ É UM SUBAGENTE DE [FUNÇÃO]. EXECUTE DIRETAMENTE.
 </passo>
 
 <passo numero="2" nome="Ler entrada">
-  Read: $WORKSPACE/[arquivo-entrada]           ← Caminho já substituído
+  Read: $WORKSPACE/[arquivo-entrada]           ← Caminho já substituído; leia por caminho
 </passo>
 
 <passo numero="3" nome="Executar tarefa">
@@ -609,13 +695,17 @@ VOCÊ É UM SUBAGENTE DE [FUNÇÃO]. EXECUTE DIRETAMENTE.
   → Use português COM ACENTOS
 </passo>
 
-<passo numero="4" nome="Salvar">
-  Write: $WORKSPACE/[arquivo-saida]            ← Caminho já substituído
+<passo numero="4" nome="Gravar o documento">
+  Write: $WORKSPACE/$NUMERO-[saida].md         ← GRAVA o documento completo, com marcadores
+</passo>
+
+<passo numero="5" nome="Responder status">
+  → Responder APENAS: "[slug-etapa] OK | $NUMERO-[saida].md" — NÃO imprimir o documento (L5)
 </passo>
 
 <restricoes>
-  - DEVE começar com "[SINALIZADOR_INICIO]"
-  - DEVE terminar com "[SINALIZADOR_FIM]"
+  - GRAVAR com "[SINALIZADOR_INICIO]" e "[SINALIZADOR_FIM]" (âncoras do gate)
+  - NÃO imprimir o documento na resposta — responder só a linha de status
   - SEM asteriscos, SEM hashtags
 </restricoes>
 ```
@@ -626,8 +716,10 @@ VOCÊ É UM SUBAGENTE DE [FUNÇÃO]. EXECUTE DIRETAMENTE.
 | 1 | Cabeçalho com ═══ e "EXECUTE DIRETAMENTE" | Sim |
 | 2 | Passo 1 = Read: .claude/agents/[agent].md | Sim |
 | 3 | Passos numerados com `<passo numero="N">` | Sim |
-| 4 | Seção `<restricoes>` com sinalizadores | Sim |
-| 5 | Tamanho < 50 linhas | Sim |
+| 4 | Passo de saída GRAVA (Write) o documento com marcadores | Sim |
+| 5 | Passo final responde 1 linha ("<slug> OK | <arquivo>") — NÃO imprime o documento (L5) | Sim |
+| 6 | Seção `<restricoes>` com sinalizadores e "NÃO imprimir inline" | Sim |
+| 7 | Tamanho < 50 linhas | Sim |
 
 ### Checklist de Validação
 
@@ -650,17 +742,22 @@ Estrutura de Prompts Inline:
 [ ] Cabeçalho com ═══ e "EXECUTE DIRETAMENTE"?
 [ ] Passo 1 SEMPRE é "Read: .claude/agents/[agent].md"?
 [ ] Passos numerados com <passo numero="N">?
-[ ] Seção <restricoes> com sinalizadores obrigatórios?
+[ ] Passo de saída GRAVA o documento e passo final responde 1 linha (não ecoa — L5)?
+[ ] Seção <restricoes> com sinalizadores e "NÃO imprimir inline"?
 
-Validação e Controle:
-[ ] <restricoes> proíbe subagentes de usar TodoWrite?
-[ ] <contingencias> trata output vazio e sinalizador ausente?
-[ ] <contratos_dados> mapeia todas as etapas?
-[ ] <sinalizadores_formato> define início/fim de cada etapa?
-[ ] <sufixos_correcao> prontos para retry?
+Retomada e Validação (v3.0):
+[ ] Etapa 0 roda o gate (verificar_<sistema>.py) → PENDENTES é o plano?
+[ ] Cada etapa tem cláusula <retomada> (pula se não está em PENDENTES — L13)?
+[ ] Validação por SCRIPT (--etapa/--gate), nunca por leitura do documento (L14)?
+[ ] <gate_do_pipeline> com o esqueleto do verificar_<sistema>.py?
+[ ] Merge puro por script (merge_<sistema>.py); Finalização com --gate?
+[ ] <restricoes> proíbe subagentes de usar TodoWrite e de ecoar o documento?
+[ ] <contingencias> trata etapa_invalida e falha_de_entrada (circuit breaker 2x)?
+[ ] <contratos_dados> mapeia todas as etapas com validação por gate?
+[ ] <sufixos_correcao> prontos (sufixo_gate, sufixo_eco)?
 
 Rastreamento:
-[ ] Etapa 0 cria TodoWrite com todas as etapas?
+[ ] Etapa 0 cria TodoWrite (etapas já válidas nascem completed)?
 [ ] Cada transição atualiza TodoWrite?
-[ ] <resumo_arquitetura> mostra fluxo de injeção?
+[ ] <resumo_arquitetura> mostra fluxo de injeção + gate/retomada?
 ```

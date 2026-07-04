@@ -1,14 +1,18 @@
-# Orquestrador: criar-orquestrador v2.1
-
-> **Propósito:** Meta-orquestrador que cria orquestradores (commands) seguindo as SPECs v2.0
->
-> **Diferencial:** Usa skill brainstorming-pipeline para definir etapas e fluxo de dados antes de gerar
-
 ---
-description: Cria orquestradores (commands) seguindo as SPECs v2.0 com brainstorming guiado
+description: Cria orquestradores (commands) no padrão v3.0 — retomada, gate por script, resposta de 1 linha — com brainstorming guiado
 argument-hint: [ideia-geral-do-pipeline]
-allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
+allowed-tools: Read Write Skill Task Bash TodoWrite AskUserQuestion Glob
 ---
+
+# Orquestrador: criar-orquestrador v3.0
+
+> **Propósito:** Meta-orquestrador que cria orquestradores (commands) no Padrão v3.0.
+>
+> **Diferencial:** Gera pipelines RETOMÁVEIS, validados por SCRIPT (gate), com subagentes que
+> GRAVAM em disco e respondem 1 linha. A filosofia permanece (orquestrador cego, injeção de
+> contexto, Passo-1-Read); muda o encanamento. Molde vivo: `${CLAUDE_PLUGIN_ROOT}/scaffold/commands/pipeline-sentenca.md`
+> e o motor de gate embarcado em `${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/verificar_pipeline.py`
+> (instalado no projeto-alvo por `/instalar-superjurista`).
 
 <identidade>
   <papel>Arquiteto de Pipelines - especialista em criar orquestradores modulares com injeção de contexto</papel>
@@ -25,7 +29,7 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
   <tools_disponiveis>
     | Tool | Função | Quando Usar |
     |------|--------|-------------|
-    | Skill | Ativar brainstorming-pipeline | Fase 1 - Ideação |
+    | Skill | Ativar brainstorm (socrática) | Fase 1 - Ideação |
     | AskUserQuestion | Coletar decisões | Todas as fases |
     | Read | Ler specs, templates e agents existentes | Fase 2 e 3 |
     | Glob | Verificar agents existentes | Fase 1 e 3 |
@@ -35,7 +39,7 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
   </tools_disponiveis>
 
   <regras_uso>
-    - Skill brainstorming-pipeline é OBRIGATÓRIO na Fase 1
+    - Skill brainstorm (socrática) é recomendada na Fase 1 (ou perguntas inline via AskUserQuestion)
     - Deve mapear TODOS os agents necessários antes de gerar
     - Verificar se agents existem ou precisam ser criados
     - Nunca pular a validação final
@@ -48,7 +52,7 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
     - NUNCA criar orquestrador sem definir etapas claramente
     - NUNCA salvar orquestrador com score < 90%
     - NUNCA omitir campos obrigatórios do YAML (description, argument-hint, allowed-tools)
-    - NUNCA esquecer de incluir TodoWrite em allowed-tools
+    - NUNCA esquecer de incluir Bash e TodoWrite em allowed-tools
     - NUNCA criar prompts inline > 50 linhas OU não estruturados
     - NUNCA criar prompt sem "Passo 1: Read: .claude/agents/[agent].md"
     - NUNCA colocar lógica/capacidade do agent inline (deve estar no arquivo)
@@ -56,6 +60,12 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
     - SEMPRE estruturar prompt: cabeçalho ═══ + passos numerados + restrições
     - SEMPRE validar se agents referenciados existem
     - SEMPRE mostrar preview e pedir confirmação
+    <!-- v3.0 (retomada, gate por script, resposta de 1 linha) -->
+    - NUNCA gerar orquestrador SEM o gate `scripts/verificar_<sistema>.py` e sem cláusula de retomada em cada etapa (L13)
+    - NUNCA fazer o orquestrador gerado VALIDAR lendo o documento — validação é por gate `--etapa`/`--gate` (L14)
+    - NUNCA fazer o invólucro do subagente devolver o documento inline — o subagente GRAVA (Write) e responde 1 linha "<etapa> OK | <arquivo>" (L5)
+    - SEMPRE gerar `scripts/verificar_<sistema>.py` (importa `rodar_cli` de `scripts/verificar_pipeline.py` no projeto-alvo) junto com o .md
+    - SEMPRE permitir paralelismo ENTRE processos distintos (não impor "um por vez"); só as etapas de UM mesmo pipeline são sequenciais
   </orquestrador>
 </restricoes>
 
@@ -170,12 +180,14 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
     Corrija e regenere.]
   </sufixo_rastreamento>
 
-  <sufixo_sinalizadores>
-    [FALHA NOS SINALIZADORES.
-    - Cada etapa DEVE ter sinalizador de INÍCIO e FIM
-    - <sufixos_correcao> DEVE estar presente
+  <sufixo_gate_retomada>
+    [FALHA NO PADRÃO v3.0.
+    - Etapa 0 DEVE rodar o gate (varredura → "PENDENTES: ..." é o plano) e criar TodoWrite com as etapas já válidas como completed
+    - Cada etapa DEVE ter cláusula de retomada (pula se o slug não está em PENDENTES) + validação por "Bash: python scripts/verificar_<sistema>.py --etapa <nome>"
+    - O invólucro do subagente DEVE mandar GRAVAR (Write) + responder 1 linha ("<etapa> OK | <arquivo>") + NÃO imprimir o documento
+    - DEVE existir o gate scripts/verificar_<sistema>.py (importa rodar_cli de verificar_pipeline)
     Corrija e regenere.]
-  </sufixo_sinalizadores>
+  </sufixo_gate_retomada>
 </sufixos_correcao>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════════ -->
@@ -217,11 +229,11 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
     <objetivo>Transformar ideia bruta em arquitetura de pipeline com etapas e agents definidos</objetivo>
 
     <acao_orquestrador>
-      1. **Ativar skill brainstorming-pipeline:**
+      1. **Ativar skill de brainstorming (socrática):**
          ```
-         Skill: brainstorming-pipeline
+         Skill: brainstorm
 
-         Contexto: Estou criando um ORQUESTRADOR (command) para o framework SuperJurista.
+         Contexto: Estou criando um ORQUESTRADOR (command) v3.0 para o framework SuperJurista.
 
          A ideia inicial é: $ARGUMENTS
 
@@ -234,10 +246,16 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
             - Qual AGENT executa? (existe ou precisa criar?)
             - Qual a ENTRADA da etapa?
             - Qual a SAÍDA da etapa?
-            - Quais SINALIZADORES validam?
-         5. Como calcular $WORKSPACE a partir de $ARGUMENTS?
-         6. Qual a convenção de nomenclatura dos arquivos?
+            - Quais ÂNCORAS (início/fim, no ARQUIVO) o gate vai conferir? (viram o ETAPAS de verificar_<sistema>.py)
+         5. Como calcular $WORKSPACE a partir de $ARGUMENTS? (padrão do projeto: data/<tipo>/<numero>/)
+         6. Qual a convenção de nomenclatura dos arquivos? ($NUMERO-tipo.md)
+         7. Há alguma etapa de MERGE puro (concatenação) que deva ser um SCRIPT, não um agente?
          ```
+
+         > **v3.0:** o pipeline nasce RETOMÁVEL. Cada etapa terá cláusula de retomada (pula se o
+         > artefato já passa no gate); a validação é por script (`verificar_<sistema>.py --etapa`),
+         > nunca pelo orquestrador lendo o documento; e cada subagente GRAVA o artefato e responde
+         > 1 linha de status.
 
       2. **Durante o brainstorming:**
          - Fazer perguntas socráticas para clarificar fluxo
@@ -349,10 +367,11 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
     <objetivo>Preencher todos os campos obrigatórios do orquestrador</objetivo>
 
     <acao_orquestrador>
-      1. **Ler templates e specs:**
+      1. **Ler templates e specs (v3.0):**
          ```
-         Read: ${CLAUDE_PLUGIN_ROOT}/spec/templates/orquestrador.md
+         Read: ${CLAUDE_PLUGIN_ROOT}/spec/templates/orquestrador.md              # molde v3.0 (retomada, gate, 1 linha)
          Read: ${CLAUDE_PLUGIN_ROOT}/spec/referencias/checklist-validacao-orquestrador.md
+         Read: ${CLAUDE_PLUGIN_ROOT}/scaffold/commands/pipeline-sentenca.md       # molde VIVO v3.0 (copiar a mecânica)
          ```
 
       2. **Definir YAML Frontmatter:**
@@ -367,7 +386,7 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
          <regras_yaml>
            - description: 1 linha descritiva
            - argument-hint: indica o que o usuário deve passar
-           - allowed-tools: SEMPRE inclui TodoWrite, separadas por ESPAÇO
+           - allowed-tools: SEMPRE inclui Bash e TodoWrite, separadas por ESPAÇO
          </regras_yaml>
 
       3. **Definir tags obrigatórias:**
@@ -391,13 +410,15 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
 
          <restricoes>
            <orquestrador>
-             - NUNCA executar etapas em paralelo
+             - Etapas de UM pipeline são sequenciais; processos DISTINTOS podem rodar em paralelo
              - NUNCA copiar prompts (instruir a LER)
-             - NUNCA prosseguir sem validar etapa anterior
+             - NUNCA ler o documento para validar (validação é por gate/script — L14)
+             - NUNCA redespachar etapa que o gate deu como válida (retomada — L13)
              - NUNCA tentar mais de 2x a mesma etapa
            </orquestrador>
            <subagentes>
              - NUNCA inventar dados
+             - NUNCA imprimir o documento na resposta — grava e responde 1 linha (L5)
              - NUNCA usar TodoWrite
            </subagentes>
          </restricoes>
@@ -432,8 +453,8 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
            - agents_utilizados: tabela com nome, capacidade, arquivo
          </configuracao>
 
-      4. **Definir cada etapa:**
-         Para cada etapa (0 a N):
+      4. **Definir cada etapa (v3.0 — retomada + gravar/1-linha + gate):**
+         Para cada etapa (1 a N):
          ```xml
          <etapa numero="N" nome="[Nome]">
            <config>
@@ -444,31 +465,46 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
              <saida>$WORKSPACE/$NUMERO-[tipo].md</saida>
            </config>
 
+           <retomada>Se "[slug-etapa]" NÃO está em PENDENTES → pular (não despachar).</retomada>
+
            <acao_orquestrador>
-             1. Verificar entrada existe
-             2. Montar prompt com variáveis injetadas
-             3. Disparar Task tool
-             4. Validar output
-             5. Atualizar TodoWrite
+             Task (modelo) com o prompt-invólucro:
+             ═══════════════════════════════════════════════════════════
+             VOCÊ É UM SUBAGENTE DE [FUNÇÃO]. EXECUTE DIRETAMENTE, SEM PREÂMBULO.
+             <passo numero="1">Read: .claude/agents/[categoria]/[nome].md — sua capacidade; siga fielmente.</passo>
+             <passo numero="2">Read: $WORKSPACE/[entrada] (por caminho, integral).</passo>
+             <passo numero="3">Aplicar o método e GRAVAR (Write) o documento COMPLETO em $WORKSPACE/$NUMERO-[tipo].md — com marcadores de início/fim e acentos.</passo>
+             <passo numero="4">Responder APENAS: "[slug-etapa] OK | $NUMERO-[tipo].md" — NÃO imprimir o documento.</passo>
+             <restricoes>NUNCA usar TodoWrite; NÃO imprimir o documento na resposta.</restricoes>
+             ═══════════════════════════════════════════════════════════
+             Validar: Bash: python scripts/verificar_[sistema].py "$WORKSPACE" --etapa [slug-etapa]
+             (exit 1 → redespachar a MESMA etapa com o motivo do gate; máx 2x). Atualizar TodoWrite.
            </acao_orquestrador>
 
-           <prompt_subagente tipo="[FUNÇÃO]">
-             <passo numero="1">Read: [agent]</passo>
-             <passo numero="2">Read: [entrada]</passo>
-             <passo numero="3">Executar tarefa</passo>
-             <passo numero="4">Write: [saída]</passo>
-           </prompt_subagente>
-
-           <validacao>
-             Tabela de verificações
-           </validacao>
-
-           <transicao>
-             Se OK → ETAPA N+1
-             Se FALHAR 2x → PARAR
-           </transicao>
+           <transicao>Gate exit 0 → ETAPA N+1; FALHAR 2x → PARAR e reportar o output do gate.</transicao>
          </etapa>
          ```
+
+      4b. **Gerar o GATE do pipeline (obrigatório):** criar `scripts/verificar_[sistema].py`:
+         ```python
+         import os, sys
+         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+         from verificar_pipeline import rodar_cli   # motor: scripts/verificar_pipeline.py
+
+         ETAPAS = {
+             # etapa: (sufixo_arquivo, inicio, fim, contem[], minimo_chars)
+             "[slug-etapa]": ("-[tipo].md", "[âncora início]", "[âncora fim]", ["[seção]"], 500),
+             # `fim` pode ser tupla p/ fim alternativo: ("juiz federal", "juíza federal", ...)
+         }
+         if __name__ == "__main__":
+             rodar_cli(ETAPAS, titulo="[sistema]")
+         ```
+         O motor `scripts/verificar_pipeline.py` roda no PROJETO-ALVO (instalado por
+         `/instalar-superjurista` a partir de `${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/`).
+         As âncoras `inicio`/`fim` DEVEM casar com os `<sinalizadores>` reais de cada agente
+         (leia-os). Se houver artefato real em `data/`, calibre contra ele (o motor normaliza
+         acento/caixa dos dois lados). Se houver etapa de merge puro, gerar também
+         `scripts/merge_[sistema].py` (análogo a `scripts/merge_sentenca.py`).
 
       5. **Definir tags finais:**
 
@@ -489,34 +525,37 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
 
     <campos_obrigatorios>
       <!--
-        Campos obrigatórios mapeados às 6 seções do checklist v2.0
-        Seções: 1-YAML, 2-OqCego, 3-Injeção, 4-Rastreamento, 5-Contratos, 6-Tags
+        Campos obrigatórios mapeados às 7 seções do checklist v3.0
+        Seções: 1-YAML, 2-OqCego, 3-Injeção, 4-v3.0(Retomada/Gate/Disco), 5-Contratos, 6-Rastreamento, 7-Tags
       -->
       | Campo | Seção | Status |
       |-------|-------|--------|
       | YAML description | 1 | [ ] |
       | YAML argument-hint | 1 | [ ] |
-      | YAML allowed-tools (com TodoWrite) | 1 | [ ] |
+      | YAML allowed-tools (com Bash e TodoWrite) | 1 | [ ] |
       | Prompts inline < 50 linhas E estruturados | 2 | [ ] |
       | Passo 1 SEMPRE é "Read: .claude/agents/[agent].md" | 2 | [ ] |
       | Agents em .claude/agents/[categoria]/ | 2 | [ ] |
       | Etapa 0 calcula $WORKSPACE | 3 | [ ] |
       | Variáveis usam $ (não colchetes) | 3 | [ ] |
-      | <rastreamento_progresso> | 4 | [ ] |
-      | <sinalizadores_formato> | 4 | [ ] |
-      | <sufixos_correcao> | 4 | [ ] |
+      | Gate scripts/verificar_<sistema>.py gerado | 4 | [ ] |
+      | Etapa 0 roda o gate (PENDENTES é o plano) | 4 | [ ] |
+      | Cada etapa tem <retomada> + validação --etapa | 4 | [ ] |
+      | Invólucro grava + responde 1 linha (não ecoa) | 4 | [ ] |
       | <contratos_dados> | 5 | [ ] |
-      | <etapas> com <config> | 5 | [ ] |
-      | <identidade>, <proposito>, <capacidades> | 6 | [ ] |
-      | <restricoes>, <contingencias> | 6 | [ ] |
-      | <resumo_arquitetura> com ASCII | 6 | [ ] |
-      | <agents_utilizados> | 6 | [ ] |
+      | <etapas> com <config> e <retomada> | 5 | [ ] |
+      | <rastreamento_progresso> | 6 | [ ] |
+      | <sufixos_correcao> | 6 | [ ] |
+      | <identidade>, <proposito>, <capacidades> | 7 | [ ] |
+      | <resumo_arquitetura> com ASCII | 7 | [ ] |
+      | <agents_utilizados> | 7 | [ ] |
     </campos_obrigatorios>
 
     <criterio_conclusao>
-      - [ ] YAML completo com allowed-tools incluindo TodoWrite
+      - [ ] YAML completo com allowed-tools incluindo Bash e TodoWrite
       - [ ] Todas tags obrigatórias preenchidas
-      - [ ] Todas etapas definidas com <config> e <prompt_subagente>
+      - [ ] Todas etapas definidas com <config>, <retomada> e prompt-invólucro
+      - [ ] Gate scripts/verificar_<sistema>.py gerado
       - [ ] Variáveis usam $ (não colchetes)
       - [ ] Agents referenciados existem ou usuário avisado
     </criterio_conclusao>
@@ -537,8 +576,9 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
     <objetivo>Criar arquivo do orquestrador, validar e salvar</objetivo>
 
     <acao_orquestrador>
-      1. **Gerar conteúdo do orquestrador:**
-         Montar arquivo .md completo com todos os campos definidos na Fase 2
+      1. **Gerar conteúdo do orquestrador (e o gate):**
+         Montar o arquivo .md completo com todos os campos definidos na Fase 2 E o
+         `scripts/verificar_<sistema>.py` correspondente (mais `scripts/merge_<sistema>.py` se houver merge puro).
 
       2. **Calcular caminho:**
          ```
@@ -559,19 +599,20 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
          ```
 
-      4. **Validar com checklist (6 seções harmonizadas):**
+      4. **Validar com checklist (7 seções — v3.0):**
          ```
-         VALIDAÇÃO DO ORQUESTRADOR
+         VALIDAÇÃO DO ORQUESTRADOR (v3.0)
          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-         1. YAML Frontmatter (CRÍTICO):              __ / 20
-         2. Orquestrador Cego (CRÍTICO):             __ / 30
-         3. Injeção de Contexto (CRÍTICO):           __ / 20
-         4. Rastreamento e Validação (ALTO):         __ / 15
-         5. Contratos e Estrutura (ALTO):            __ / 10
-         6. Tags e Boas Práticas (MÉDIO):            __ / 5
+         1. YAML Frontmatter (CRÍTICO):                 __ / 15
+         2. Orquestrador Cego (CRÍTICO):                __ / 20
+         3. Injeção de Contexto (CRÍTICO):              __ / 15
+         4. v3.0 Retomada, Gate e Saída em Disco (CRÍT):__ / 25
+         5. Contratos e Estrutura (ALTO):               __ / 10
+         6. Rastreamento e Contingências (ALTO):        __ / 10
+         7. Tags e Boas Práticas (MÉDIO):               __ / 5
          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-         TOTAL:                                      __ / 100
+         TOTAL:                                         __ / 100
 
          Status: [APROVADO (≥90) | REPROVADO (<90)]
          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -615,6 +656,8 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
          ```
          Write: $CAMINHO
          [Conteúdo do orquestrador]
+         Write: scripts/verificar_[sistema].py
+         [Gate que importa rodar_cli de verificar_pipeline]
          ```
 
       9. **Mostrar resultado final:**
@@ -624,6 +667,7 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
          Arquivo: $CAMINHO
+         Gate: scripts/verificar_[sistema].py
          Score: __/100 (__%)
 
          Para usar:
@@ -638,80 +682,86 @@ allowed-tools: Read Write Skill Task TodoWrite AskUserQuestion Glob
          Criar agents faltantes com /criar-agente:
            - [nome-agent]: [capacidade]
 
+         [Se o motor de gate não estiver no projeto-alvo:]
+         ⚠️ Rodar /instalar-superjurista para instalar scripts/verificar_pipeline.py (motor do gate).
+
          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
          ```
     </acao_orquestrador>
 
     <checklist_validacao>
       <!--
-        Checklist completo do orquestrador v2.0
+        Checklist completo do orquestrador v3.0
         Score mínimo para aprovação: 90/100
-        Harmonizado com checklist de agents (6 seções ponderadas)
+        Seção 4 (v3.0: retomada, gate, saída em disco) é CRÍTICA — um orquestrador no
+        padrão antigo (validação por leitura, sem retomada) reprova por ela.
       -->
 
-      <secao_1 nome="YAML Frontmatter" max="20" severidade="CRÍTICO">
+      <secao_1 nome="YAML Frontmatter" max="15" severidade="CRÍTICO">
         | Item | Pts | Check |
         |------|-----|-------|
-        | Arquivo começa com `---` | 2 | [ ] |
-        | Campo `description` presente e descritivo | 5 | [ ] |
-        | Campo `argument-hint` presente e claro | 3 | [ ] |
-        | Campo `allowed-tools` presente | 3 | [ ] |
-        | `allowed-tools` usa ESPAÇO (não vírgula) | 2 | [ ] |
-        | `allowed-tools` inclui TodoWrite | 3 | [ ] |
+        | Arquivo começa com `---` (frontmatter no TOPO, antes de qualquer H1) | 3 | [ ] |
+        | Campo `description` (CSO) e `argument-hint` presentes | 5 | [ ] |
+        | `allowed-tools` usa ESPAÇO e inclui `Bash` e `TodoWrite` | 5 | [ ] |
         | Bloco termina com `---` | 2 | [ ] |
       </secao_1>
 
-      <secao_2 nome="Orquestrador Cego" max="30" severidade="CRÍTICO">
+      <secao_2 nome="Orquestrador Cego" max="20" severidade="CRÍTICO">
         | Item | Pts | Check |
         |------|-----|-------|
-        | Prompts inline < 50 linhas E estruturados | 10 | [ ] |
-        | Passo 1 SEMPRE é "Read: .claude/agents/[agent].md" | 10 | [ ] |
-        | Agents em `.claude/agents/[categoria]/` | 5 | [ ] |
-        | Agents são modulares e reutilizáveis | 5 | [ ] |
+        | Prompts inline < 50 linhas E estruturados | 7 | [ ] |
+        | Passo 1 SEMPRE é "Read: .claude/agents/[agent].md" | 8 | [ ] |
+        | Agents em `.claude/agents/[categoria]/`, modulares e reutilizáveis | 5 | [ ] |
       </secao_2>
 
-      <secao_3 nome="Injeção de Contexto" max="20" severidade="CRÍTICO">
+      <secao_3 nome="Injeção de Contexto" max="15" severidade="CRÍTICO">
         | Item | Pts | Check |
         |------|-----|-------|
-        | Etapa 0 recebe $ARGUMENTS do usuário | 5 | [ ] |
-        | Etapa 0 calcula $WORKSPACE e $NUMERO | 5 | [ ] |
-        | Variáveis usam padrão $ (não colchetes) | 5 | [ ] |
-        | Sem paths absolutos hardcoded (C:\Users\...) | 5 | [ ] |
+        | Etapa 0 recebe $ARGUMENTS e calcula $WORKSPACE/$NUMERO | 7 | [ ] |
+        | Variáveis usam padrão $ (não colchetes) | 4 | [ ] |
+        | Sem paths absolutos hardcoded (C:\Users\...) | 4 | [ ] |
       </secao_3>
 
-      <secao_4 nome="Rastreamento e Validação" max="15" severidade="ALTO">
+      <secao_4 nome="v3.0 — Retomada, Gate e Saída em Disco" max="25" severidade="CRÍTICO">
         | Item | Pts | Check |
         |------|-----|-------|
-        | Tag `<rastreamento_progresso>` presente | 3 | [ ] |
-        | TodoWrite criado na Etapa 0 com TODAS as etapas | 4 | [ ] |
-        | Transições atualizam TodoWrite | 3 | [ ] |
-        | Tag `<sinalizadores_formato>` presente | 3 | [ ] |
-        | Tag `<sufixos_correcao>` presente | 2 | [ ] |
+        | Existe o gate `scripts/verificar_<sistema>.py` (importa rodar_cli, declara ETAPAS) | 6 | [ ] |
+        | Etapa 0 roda o gate (varredura → "PENDENTES: ..." é o plano) | 5 | [ ] |
+        | Cada etapa tem cláusula de retomada (pula se não está em PENDENTES) — L13 | 5 | [ ] |
+        | Validação por `verificar_<sistema>.py --etapa`/`--gate`; orquestrador NÃO lê p/ validar — L14 | 5 | [ ] |
+        | Invólucro manda GRAVAR (Write) + responder 1 linha + NÃO imprimir o documento — L5 | 4 | [ ] |
       </secao_4>
 
       <secao_5 nome="Contratos e Estrutura" max="10" severidade="ALTO">
         | Item | Pts | Check |
         |------|-----|-------|
-        | `<contratos_dados>` mapeia TODAS as etapas | 4 | [ ] |
-        | Cada etapa tem `<config>` | 2 | [ ] |
-        | Cada etapa tem `<acao_orquestrador>` | 2 | [ ] |
-        | Cada etapa tem `<validacao>` e `<transicao>` | 2 | [ ] |
+        | `<contratos_dados>` mapeia TODAS as etapas (Validação = "verificar --etapa → 0") | 4 | [ ] |
+        | Cada etapa tem `<config>`, `<retomada>` e `<acao_orquestrador>` | 4 | [ ] |
+        | Merge puro (se houver) é SCRIPT, não agente; Finalização roda `--gate` | 2 | [ ] |
       </secao_5>
 
-      <secao_6 nome="Tags e Boas Práticas" max="5" severidade="MÉDIO">
+      <secao_6 nome="Rastreamento e Contingências" max="10" severidade="ALTO">
+        | Item | Pts | Check |
+        |------|-----|-------|
+        | `<rastreamento_progresso>`: TodoWrite na Etapa 0 (válidas nascem completed) + transições | 5 | [ ] |
+        | `<sufixos_correcao>` presente + circuit breaker de 2 tentativas | 3 | [ ] |
+        | Paralelismo entre processos permitido (sem "um por vez"/`/clear`) | 2 | [ ] |
+      </secao_6>
+
+      <secao_7 nome="Tags e Boas Práticas" max="5" severidade="MÉDIO">
         | Item | Pts | Check |
         |------|-----|-------|
         | `<identidade>`, `<proposito>`, `<capacidades>` presentes | 2 | [ ] |
         | `<restricoes>` e `<contingencias>` presentes | 1 | [ ] |
         | `<resumo_arquitetura>` com diagrama ASCII | 1 | [ ] |
         | `<configuracao>` com `<agents_utilizados>` | 1 | [ ] |
-      </secao_6>
+      </secao_7>
     </checklist_validacao>
 
     <criterio_conclusao>
       - [ ] Score >= 90/100
       - [ ] Usuário confirmou salvamento
-      - [ ] Arquivo criado com sucesso
+      - [ ] Arquivo criado com sucesso (orquestrador + gate)
       - [ ] Agents faltantes identificados (se houver)
     </criterio_conclusao>
 
@@ -732,29 +782,30 @@ PIPELINE /criar-orquestrador - Arquitetura
 │   └── Cria: TodoWrite
 │
 ├── FASE 1: Brainstorming
-│   ├── Ativa: Skill brainstorming-pipeline
-│   ├── Define: Etapas, agents, fluxo de dados
+│   ├── Ativa: Skill brainstorm (socrática)
+│   ├── Define: Etapas, agents, fluxo de dados, ÂNCORAS do gate
 │   ├── Verifica: Agents existentes
 │   └── Produz: Diagrama ASCII do pipeline
 │
 ├── FASE 2: Especificação
-│   ├── Lê: Templates e checklists
-│   ├── Define: YAML, tags obrigatórias
-│   ├── Detalha: Cada etapa com <config> e <prompt_subagente>
+│   ├── Lê: Template v3.0 + checklist + molde vivo (pipeline-sentenca)
+│   ├── Define: YAML, tags obrigatórias, <retomada> por etapa
+│   ├── Detalha: Cada etapa com <config> e prompt-invólucro (grava/1-linha)
+│   ├── Gera: scripts/verificar_<sistema>.py (gate)
 │   └── Configura: Variáveis de injeção
 │
 └── FASE 3: Geração e Validação
-    ├── Gera: Arquivo .md completo
-    ├── Valida: Score >= 90/100 (6 seções harmonizadas)
+    ├── Gera: Arquivo .md completo + gate
+    ├── Valida: Score >= 90/100 (7 seções — seção 4 v3.0 é crítica)
     ├── Verifica: Agents faltantes via Glob
     ├── Confirma: Com usuário
-    └── Salva: Em .claude/commands/
+    └── Salva: Em .claude/commands/ + scripts/
 
 FLUXO DE DADOS:
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │ Ideia de     │────▶│ Arquitetura  │────▶│ Estrutura    │────▶│ Orquestrador │
-│ pipeline     │     │ (etapas,     │     │ completa     │     │ .md validado │
-│              │     │  agents)     │     │              │     │              │
+│ pipeline     │     │ (etapas,     │     │ completa     │     │ .md + gate   │
+│              │     │  agents)     │     │ (+ gate)     │     │ (validado)   │
 └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
 </resumo_arquitetura>
 
@@ -762,22 +813,23 @@ FLUXO DE DADOS:
 Antes de iniciar, verificar:
 
 **Fase 1:**
-- [ ] Skill brainstorming-pipeline será ativado?
-- [ ] Todas as etapas serão definidas?
+- [ ] Skill brainstorm (socrática) será ativada?
+- [ ] Todas as etapas serão definidas (com ÂNCORAS do gate)?
 - [ ] Agents serão verificados se existem?
 - [ ] Diagrama ASCII será criado?
 
 **Fase 2:**
-- [ ] Templates serão consultados?
-- [ ] YAML terá TodoWrite em allowed-tools?
+- [ ] Templates v3.0 + molde vivo serão consultados?
+- [ ] YAML terá Bash e TodoWrite em allowed-tools?
 - [ ] Variáveis usarão $ (não colchetes)?
-- [ ] Cada etapa terá <config> e <prompt_subagente>?
+- [ ] Cada etapa terá <config>, <retomada> e prompt-invólucro (grava/1-linha)?
 - [ ] Prompts inline < 50 linhas E estruturados?
 - [ ] Passo 1 de cada prompt é "Read: .claude/agents/[agent].md"?
+- [ ] Gate scripts/verificar_<sistema>.py será gerado?
 
 **Fase 3:**
 - [ ] Preview será mostrado ao usuário?
-- [ ] Checklist de 6 seções harmonizadas será aplicado?
+- [ ] Checklist de 7 seções (v3.0) será aplicado?
 - [ ] Score mínimo 90/100?
 - [ ] Agents faltantes verificados via Glob?
 - [ ] Opção de criar agents faltantes oferecida?
@@ -794,10 +846,11 @@ Usuário: /criar-orquestrador um pipeline que analisa embargos de declaração
 [Fase 1 - Brainstorming]
 Claude: Vou ativar o brainstorming para definir a arquitetura...
 
-Skill brainstorming:
+Skill brainstorm:
 - "Qual é a entrada? O texto dos embargos ou o processo completo?"
 - "Quais etapas são necessárias? Análise de admissibilidade? Mérito?"
 - "Qual é a saída final? Uma decisão? Um relatório?"
+- "Quais âncoras de início/fim cada etapa grava no arquivo (para o gate)?"
 ...
 
 Arquitetura aprovada:
@@ -808,7 +861,7 @@ Arquitetura aprovada:
 FLUXO:
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │   ETAPA 0    │────▶│   ETAPA 1    │────▶│   ETAPA 2    │
-│ Preparação   │     │  Análise     │     │  Decisão     │
+│ Prep + gate  │     │  Análise     │     │  Decisão     │
 └──────────────┘     └──────────────┘     └──────────────┘
 
 AGENTS:
@@ -822,10 +875,11 @@ Claude: Definindo campos...
 - description: Pipeline de análise e decisão de embargos de declaração
 - argument-hint: caminho-do-processo
 - allowed-tools: Read Task Bash TodoWrite
+- Gerando scripts/verificar_embargos.py (gate)
 ...
 
 [Fase 3 - Geração]
-Claude: Gerando orquestrador...
+Claude: Gerando orquestrador + gate...
 
 Verificação de Agents (via Glob):
 | Agent | Status |
@@ -833,17 +887,18 @@ Verificação de Agents (via Glob):
 | analista-embargos | ✅ .claude/agents/analise/analista-embargos.md |
 | embargos-decisao | ✅ .claude/agents/analise/embargos-decisao.md |
 
-Validação (6 seções):
-1. YAML Frontmatter (CRÍTICO):      20 / 20
-2. Orquestrador Cego (CRÍTICO):     30 / 30
-3. Injeção de Contexto (CRÍTICO):   20 / 20
-4. Rastreamento e Validação (ALTO): 15 / 15
-5. Contratos e Estrutura (ALTO):    10 / 10
-6. Tags e Boas Práticas (MÉDIO):     5 / 5
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TOTAL:                             100 / 100 ✓ APROVADO
+Validação (7 seções — v3.0):
+1. YAML Frontmatter (CRÍTICO):                 15 / 15
+2. Orquestrador Cego (CRÍTICO):                20 / 20
+3. Injeção de Contexto (CRÍTICO):              15 / 15
+4. v3.0 Retomada, Gate e Saída em Disco (CRÍT):25 / 25
+5. Contratos e Estrutura (ALTO):               10 / 10
+6. Rastreamento e Contingências (ALTO):        10 / 10
+7. Tags e Boas Práticas (MÉDIO):                5 / 5
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL:                                        100 / 100 ✓ APROVADO
 
-Deseja salvar em .claude/commands/pipeline-embargos.md?
+Deseja salvar em .claude/commands/pipeline-embargos.md (+ scripts/verificar_embargos.py)?
 ```
 
 </exemplos>

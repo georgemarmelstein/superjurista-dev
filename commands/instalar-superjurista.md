@@ -113,8 +113,10 @@ allowed-tools: Bash Read Write AskUserQuestion Glob
     <acao>
       1. **Criar diretórios base:**
          ```bash
-         mkdir -p .claude/commands .claude/agents .claude/skills .claude/mcp-servers
+         mkdir -p .claude/commands .claude/agents .claude/skills .claude/mcp-servers scripts
          ```
+         (`scripts/` na RAIZ do projeto — é onde vive o motor de gate `verificar_pipeline.py`
+         que os pipelines v3.0 importam; não é `.claude/scripts/`.)
 
       2. **Copiar conteúdo conforme $MODO_COPIA:**
 
@@ -125,6 +127,7 @@ allowed-tools: Bash Read Write AskUserQuestion Glob
            cp -r "${CLAUDE_PLUGIN_ROOT}/scaffold/agents/"* .claude/agents/
            cp -r "${CLAUDE_PLUGIN_ROOT}/scaffold/skills/"* .claude/skills/
            cp -r "${CLAUDE_PLUGIN_ROOT}/scaffold/mcp-servers/"* .claude/mcp-servers/
+           cp -r "${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/"* scripts/   # motor de gate v3.0 (verificar_pipeline.py)
            ```
          </se_modo_sobrescrever_ou_instalar>
 
@@ -135,6 +138,7 @@ allowed-tools: Bash Read Write AskUserQuestion Glob
            cp -rn "${CLAUDE_PLUGIN_ROOT}/scaffold/agents/"* .claude/agents/
            cp -rn "${CLAUDE_PLUGIN_ROOT}/scaffold/skills/"* .claude/skills/
            cp -rn "${CLAUDE_PLUGIN_ROOT}/scaffold/mcp-servers/"* .claude/mcp-servers/
+           cp -rn "${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/"* scripts/   # motor de gate v3.0 (verificar_pipeline.py)
            ```
            (A flag -n / --no-clobber impede sobrescrita de arquivos existentes)
          </se_modo_mesclar>
@@ -151,6 +155,7 @@ allowed-tools: Bash Read Write AskUserQuestion Glob
          ls .claude/agents/analise/*.md > /dev/null 2>&1 && echo "agents OK" || echo "agents FALHOU"
          ls .claude/skills/pje-download/SKILL.md > /dev/null 2>&1 && echo "skills OK" || echo "skills FALHOU"
          ls .claude/mcp-servers/tjsc-eproc/server.py > /dev/null 2>&1 && echo "mcp-servers OK" || echo "mcp-servers FALHOU"
+         ls scripts/verificar_pipeline.py > /dev/null 2>&1 && echo "scripts OK" || echo "scripts FALHOU"
          ```
          Se qualquer um falhou → reportar erro e parar
     </acao>
@@ -248,6 +253,7 @@ allowed-tools: Bash Read Write AskUserQuestion Glob
         .claude/agents/      -- agentes especializados
         .claude/skills/      -- skills com scripts
         .claude/mcp-servers/ -- servidores MCP locais
+        scripts/             -- motor de gate v3.0 (verificar_pipeline.py)
         data/sentenca/       -- processos para sentenca
         data/decisao/        -- processos para decisao
 
@@ -277,6 +283,7 @@ FLUXO /instalar-superjurista:
   │  ${CLAUDE_PLUGIN_ROOT}/scaffold/agents/      → .claude/agents/
   │  ${CLAUDE_PLUGIN_ROOT}/scaffold/skills/      → .claude/skills/
   │  ${CLAUDE_PLUGIN_ROOT}/scaffold/mcp-servers/ → .claude/mcp-servers/
+  │  ${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/     → scripts/ (motor de gate v3.0)
   │
   ▼
   FASE 3: Arquivos Raiz

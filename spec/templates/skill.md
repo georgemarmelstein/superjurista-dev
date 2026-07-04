@@ -238,6 +238,22 @@ Retorne APENAS: status, caminhos, estatisticas.
 3. Modelo segue instrucoes (contexto limpo)
 4. Economia de tokens
 
+### Skills que embarcam scripts (v3.0)
+
+Quando uma skill traz `scripts/`, ela segue o mesmo espírito determinístico do pipeline:
+
+- **`context: fork`** para isolar o output verboso do contexto principal (SKILL.md < 100
+  linhas, comandos literais, "REGRA ABSOLUTA: NÃO crie código novo", documentação rica em
+  `references/`).
+- **Output mínimo `[INICIO]/[OK]/[ERRO]/[FIM]`** — uma linha por item processado; detalhe
+  vai para arquivo de log, não para stdout. A skill retorna um resumo (status, caminhos,
+  estatísticas), NUNCA o output cru dos scripts.
+- Se a skill é, na prática, um **mini-pipeline de 3+ etapas** com dependências (ideia →
+  spec → artefato → validação), aplica-se o padrão do orquestrador: subagentes internos
+  gravam em disco, o SKILL.md valida por `Bash: test -f`/`grep` (regra **zero-read**,
+  nunca Read para checar existência) e há retomada por varredura. Ver
+  `${CLAUDE_PLUGIN_ROOT}/spec/referencias/design-skill-agentica-robusta.md`.
+
 ### Regras para o Campo `name`
 
 **Válidos:**
