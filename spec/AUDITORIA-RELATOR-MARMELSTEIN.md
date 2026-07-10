@@ -2,8 +2,8 @@
 
 **Data:** 2026-01-18
 **Arquivo analisado:** `.claude/agents/extracao/relator-marmelstein.md`
-**Spec de referência:** `.claude/specs/templates/agent.md` (v2.0)
-**Checklist aplicado:** `.claude/specs/referencias/checklist-validacao-agent.md` (v1.0)
+**Spec de referência:** `.claude/spec/templates/agent.md` (v2.0)
+**Checklist aplicado:** `.claude/spec/referencias/checklist-validacao-agent.md` (v1.0)
 **Auditor:** Claude Opus 4.5
 
 ---

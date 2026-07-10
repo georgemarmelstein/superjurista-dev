@@ -81,6 +81,7 @@ As credenciais estao em `.env` na raiz do projeto (arquivo NAO versionado):
 ```env
 PJE_CPF=seu_cpf_aqui
 PJE_SENHA=sua_senha_aqui
+PJE_TOTP_SEED=seed_base32_do_google_authenticator
 ```
 
 Para ler (se necessario preencher manualmente):
@@ -88,6 +89,13 @@ Para ler (se necessario preencher manualmente):
 source .env 2>/dev/null || true
 echo $PJE_CPF
 ```
+
+**2FA (Google Authenticator):** desde a versao 2.11 do PJe (05/2026) o login exige
+um codigo de 6 digitos do Google Authenticator. Esse codigo e um TOTP: e derivado
+do seed em `PJE_TOTP_SEED`. Em vez de ler do celular, geramos por software (mesmo
+seed = mesmo codigo). Ver Etapa 4.5. Se `PJE_TOTP_SEED` estiver vazio, o login para
+no 2FA e o fallback e digitar manualmente o codigo do celular. Detalhes, como obter
+o seed e solucao de problemas: `references/2fa-totp.md`.
 
 ---
 
@@ -138,7 +146,41 @@ mcp__claude-in-chrome__computer (action: wait, duration: 4)
 
 **Verificar login:**
 - URL deve conter `QuadroAviso` ou `painel`
-- Se ainda na pagina de login, verificar erro e reportar
+- Se aparecer tela pedindo codigo do autenticador (2FA), ir para Etapa 4.5
+- Se ainda na pagina de login com erro de senha, verificar e reportar
+
+### Etapa 4.5: Segundo fator (Google Authenticator) — automatico
+
+Apos o ENTRAR, o PJE pode exibir a tela do autenticador (campo para o codigo de
+6 digitos). Detectar via screenshot: procurar texto tipo "codigo", "autenticador"
+ou "verificacao" e um campo numerico.
+
+**Se a tela do 2FA aparecer:**
+
+1. Gerar o codigo por software (le `PJE_TOTP_SEED` do `.env`):
+
+```bash
+python .claude/skills/capturar-sessao-pje/scripts/gerar_totp.py
+```
+
+O script imprime SOMENTE os 6 digitos (ex: `499004`). Guardar esse valor.
+
+2. Digitar o codigo no campo do 2FA e submeter:
+
+```
+mcp__claude-in-chrome__form_input (campo do codigo -> os 6 digitos)
+mcp__claude-in-chrome__computer (action: left_click, coordinate: [x, y de CONFIRMAR/ENTRAR])
+mcp__claude-in-chrome__computer (action: wait, duration: 4)
+```
+
+3. Verificar: URL agora deve conter `QuadroAviso` ou `painel`. Se ainda no 2FA:
+   - O codigo pode ter expirado na virada da janela de 30s. Gerar de novo
+     (passo 1) e redigitar UMA vez.
+   - Se `gerar_totp.py` reclamar de seed ausente/invalido, cair no fallback:
+     pedir ao usuario o codigo atual do celular e digitar manualmente.
+
+**Observacao:** o codigo TOTP vale ~30s. Gere-o imediatamente antes de digitar,
+nao antes de navegar/esperar.
 
 ### Etapa 5: Capturar sessao via JavaScript
 

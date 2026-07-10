@@ -1,5 +1,17 @@
 # Framework Super Jurista
 
+> **Atualização v3.0 (04/07/2026) — leia antes das seções de validação abaixo.**
+> A filosofia deste framework (orquestrador cego, injeção de contexto, contratos, menor
+> privilégio) permanece. Mudou o **encanamento** dos pipelines: (1) o subagente GRAVA o
+> documento e responde 1 linha de status — não devolve o texto inline; (2) a validação é por
+> SCRIPT (`scripts/verificar_<sistema>.py`, motor `scripts/verificar_pipeline.py`), com âncoras
+> normalizadas de acento/caixa — o orquestrador não lê o documento para validar; (3) pipelines são
+> RETOMÁVEIS (a linha `PENDENTES` do gate é o plano; etapa válida não roda de novo); (4) merge por
+> script. Onde este README ainda descreve "validar lendo o sinalizador" ou "regenerar por
+> sufixo sem gate", isso vale para pipelines antigos; o padrão vigente é o do
+> `scaffold/commands/pipeline-sentenca.md` e das 14 Iron Laws do Padrão Soberano
+> (`${CLAUDE_PLUGIN_ROOT}/skills/criar-sistema/references/padrao-soberano.md`).
+
 ## Visão Geral
 
 O **Super Jurista** é um framework para construção de **pipelines determinísticos** usando Claude Code. Estabelece padrões para criação de agentes, orquestradores e workflows que trocam flexibilidade por previsibilidade.
@@ -1117,7 +1129,7 @@ USUÁRIO: /pipeline-xxx [argumento]
 [ ] .claude/commands/ contém orquestradores?
 [ ] .claude/agents/ organizado por categoria (não por pipeline)?
 [ ] .claude/skills/ separa conhecimento de scripts?
-[ ] .claude/specs/ contém templates?
+[ ] .claude/spec/ contém templates?
 ```
 
 ### Qualidade dos Agents
@@ -1198,18 +1210,18 @@ Essas características justificam um framework mais rígido que o SDD genérico.
 - **Guia de pipelines:** `docs/70-guia-arquitetura-pipelines-workflows.md`
 
 ### Templates (uso direto)
-- **Agent:** `.claude/specs/templates/agent.md`
-- **Orquestrador:** `.claude/specs/templates/orquestrador.md`
-- **Command Simples:** `.claude/specs/templates/command-simples.md` (v2.5)
-- **Skill:** `.claude/specs/templates/skill.md`
+- **Agent:** `${CLAUDE_PLUGIN_ROOT}/spec/templates/agent.md`
+- **Orquestrador:** `${CLAUDE_PLUGIN_ROOT}/spec/templates/orquestrador.md`
+- **Command Simples:** `${CLAUDE_PLUGIN_ROOT}/spec/templates/command-simples.md` (v2.5)
+- **Skill:** `${CLAUDE_PLUGIN_ROOT}/spec/templates/skill.md`
 
 ### Referências (consulta)
-- **Checklist de Validação Agent:** `.claude/specs/referencias/checklist-validacao-agent.md`
-- **Checklist de Validação Orquestrador:** `.claude/specs/referencias/checklist-validacao-orquestrador.md`
-- **Variantes de Subagente:** `.claude/specs/referencias/variantes-subagente.md`
-- **Contrato Avançado:** `.claude/specs/referencias/contrato-avancado.md`
-- **Exemplo Agent Corrigido:** `.claude/specs/referencias/exemplo-agent-corrigido.md` (v2.4)
-- **Refatoracao Skills Fork:** `.claude/specs/referencias/refatoracao-skills-fork.md` (v2.7)
+- **Checklist de Validação Agent:** `${CLAUDE_PLUGIN_ROOT}/spec/referencias/checklist-validacao-agent.md`
+- **Checklist de Validação Orquestrador:** `${CLAUDE_PLUGIN_ROOT}/spec/referencias/checklist-validacao-orquestrador.md`
+- **Variantes de Subagente:** `${CLAUDE_PLUGIN_ROOT}/spec/referencias/variantes-subagente.md`
+- **Contrato Avançado:** `${CLAUDE_PLUGIN_ROOT}/spec/referencias/contrato-avancado.md`
+- **Exemplo Agent Corrigido:** `${CLAUDE_PLUGIN_ROOT}/spec/referencias/exemplo-agent-corrigido.md` (v2.4)
+- **Refatoracao Skills Fork:** `${CLAUDE_PLUGIN_ROOT}/spec/referencias/refatoracao-skills-fork.md` (v2.7)
 
 ---
 

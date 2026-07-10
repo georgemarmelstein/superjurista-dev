@@ -181,7 +181,7 @@ Ha contradicoes que podem causar implementacoes incorretas, especialmente sobre 
 | 6.2 | BAIXA | README.md L700 | "namespacing por pipeline" | Remover - obsoleto em v2 |
 | 6.3 | BAIXA | variantes-subagente.md (todo) | Todos os caminhos usam `[pipeline]` | Atualizar para v2 ou marcar como "Legado v1" |
 | 6.4 | BAIXA | contrato-avancado.md L17, L93-94 | Caminhos com `[pipeline]` | Atualizar para v2 |
-| 6.5 | BAIXA | README.md L746 | `.claude/specs/templates/skill.md` referenciado como v1.4 | Changelog diz v1.4 mas nao ha versao no arquivo skill.md |
+| 6.5 | BAIXA | README.md L746 | `.claude/spec/templates/skill.md` referenciado como v1.4 | Changelog diz v1.4 mas nao ha versao no arquivo skill.md |
 | 6.6 | MEDIA | manifest.md | Mistura padroes de nomenclatura | Padronizar para `[NUMERO]-tipo.md` em todo o documento |
 | 6.7 | BAIXA | README.md L804 | "v1.1 (2026-01-18)" | Verificar se a data esta correta (mesmo dia para v1.0 a v2.1) |
 

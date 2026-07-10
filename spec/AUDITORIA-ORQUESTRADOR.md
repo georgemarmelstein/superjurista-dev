@@ -2,7 +2,7 @@
 
 **Data:** 2026-01-18
 **Arquivo analisado:** `.claude/commands/pipeline-sentenca-orquestrador.md`
-**Spec de referência:** `.claude/specs/templates/orquestrador.md` (v2.0)
+**Spec de referência:** `.claude/spec/templates/orquestrador.md` (v2.0)
 **Auditor:** Claude Opus 4.5
 
 ---

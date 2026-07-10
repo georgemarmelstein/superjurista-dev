@@ -45,7 +45,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 └── mcp-servers/        # SERVIDORES MCP LOCAIS
     └── tjsc-eproc/     # Jurisprudência TJSC via eProc (público)
 
-data/                   # SAÍDAS DO SISTEMA
+scripts/                # GATES DETERMINÍSTICOS (v3.0)
+├── verificar_pipeline.py   # Motor genérico de validação por âncoras
+├── verificar_sentenca.py   # Gate do pipeline-sentenca (varredura/--etapa/--gate)
+└── merge_sentenca.py       # Merge da sentença por script (sem LLM)
+
+data/                   # SAÍDAS DO SISTEMA — o ÚNICO destino canônico de saída
 ├── sentenca/           # Processos para sentença
 │   └── <numero-processo>/
 │       ├── processo.txt          # Entrada (texto extraído)
@@ -129,7 +134,6 @@ pip install requests beautifulsoup4 pdfplumber PyPDF2 pdf2image pytesseract
 | `cjf-jurisprudencia` | Portal CJF (STF, STJ, TRFs) | `TERMO E OU NAO ADJ PROX COM MESMO` (MAIÚSCULO) |
 | `julia-trf5` | Sistema JULIA do TRF5 | `termo e ou nao prox adj $` (minúsculo) |
 | `tjsc-eproc` | Jurisprudência do TJSC (eProc) | `termo ou nao prox "frase" *wildcard` (case-insensitive) |
-| `jurisdf-tjdft` | Jurisprudência do TJDFT | Similar ao CJF |
 | `infojuris-cnj` | InfoJuris do CNJ | Precedentes qualificados |
 | `claude-in-chrome` | Automação browser (sessão PJE, login) | Controle nativo do navegador |
 
@@ -187,22 +191,27 @@ Para tarefas paralelas, use Agent Teams em vez de múltiplas chamadas Task:
 - Definir em `team-manifest.md` na pasta do workspace
 - Execução paralela simples ou debate real entre agentes
 
-### Validação Entre Etapas
+### Validação Entre Etapas (v3.0: por script, não por leitura)
 
-Cada output DEVE ser validado antes de prosseguir:
-1. Arquivo existe?
-2. Sinalizador de INÍCIO presente?
-3. Sinalizador de FIM presente?
-4. Acentos em português presentes?
+A validação é DETERMINÍSTICA, feita por um gate por script — o orquestrador NÃO lê o
+documento para validar. Cada pipeline v3.0 traz `scripts/verificar_<sistema>.py` (ou usa o
+motor genérico `scripts/verificar_pipeline.py`):
+1. Varredura → linha `PENDENTES: ...` (o plano; etapa já válida não roda de novo — retomada)
+2. `--etapa <nome>` → exit 0/1 (arquivo existe; abre/fecha com as âncoras normalizadas de
+   acento/caixa; tem as seções obrigatórias e acentos)
+3. `--gate` → exit 1 se qualquer etapa pendente/inválida
 
-Se falhar: REGENERAR com sufixo de correção (máx 2 tentativas)
+Se uma etapa falhar: REGENERAR com o motivo do gate anexado (máx 2 tentativas). Molde vivo:
+`.claude/commands/pipeline-sentenca.md`. Pipelines antigos ainda validam por frase-âncora
+lida; a meta é migrá-los ao gate por script.
 
-### Múltiplos Processos na Mesma Sessão
+### Múltiplos Processos na Mesma Sessão (v3.0)
 
-Para evitar degradação por compactação:
-1. Executar `/clear` entre processos
-2. O `/clear` limpa contexto mas preserva CLAUDE.md
-3. Ao re-executar pipeline, o command é re-lido do disco
+Pipelines de processos DISTINTOS são independentes e podem rodar em PARALELO (um Task de
+pipeline por processo) — não existe "um por vez" nem `/clear` obrigatório entre processos.
+Como o documento vive no ARQUIVO e a validação é por script, o contexto do orquestrador
+fica leve. `/clear` continua disponível para isolar processos muito longos, mas a retomada
+(PENDENTES) já protege contra retrabalho.
 
 ## Arquivo pje_session.json
 
@@ -214,3 +223,10 @@ Credenciais do PJE capturadas via Chrome MCP usando o comando `/capturar-sessao-
 3. Ou extrair manualmente os cookies via DevTools (Application > Cookies)
 
 **IMPORTANTE:** Este arquivo contém credenciais sensíveis. **NÃO VERSIONAR!** Adicione `pje_session.json` ao `.gitignore`.
+
+**2FA (PJe TRF5 2.11+):** desde 05/07/2026 o login exige um segundo fator: código de 6
+dígitos do Google Authenticator. Esse código é um TOTP (RFC 6238), gerado por software a
+partir do seed guardado em `.env` (`PJE_TOTP_SEED`) — não depende do celular. A skill
+`capturar-sessao-pje` (Etapa 4.5) chama `scripts/gerar_totp.py` para preencher o código
+automaticamente. Detalhes: `.claude/skills/capturar-sessao-pje/references/2fa-totp.md`.
+O seed é credencial forte: fica no `.env` (gitignored), nunca versionar/logar.

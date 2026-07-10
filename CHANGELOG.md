@@ -1,6 +1,21 @@
 # Changelog
 
-## 1.1.0 (2026-07-04)
+## 1.1.0 (2026-07-10)
+
+### Adicionado
+
+- **Skill `criar-sistema`** — motor de geração de sistemas agênticos inteiros (1 orquestrador +
+  N agentes + M skills) a partir de uma descrição de intenção: blueprint como contrato, geração
+  em ondas, validação adversarial e commit atômico. Vem com 5 agentes próprios (primeira leva de
+  `agents/` do plugin): `gerador-de-agente`, `gerador-de-skill`, `gerador-de-orquestrador`,
+  `validador-de-artefato` e `validador-de-coerencia`, além das referências `padrao-soberano.md`
+  (14 Iron Laws), `blueprint-schema.md` e `deteccao-convencao.md`.
+- **2FA TOTP no PJe** (scaffold `capturar-sessao-pje`): o PJe TRF5 2.11 (05/2026) passou a exigir
+  segundo fator no login. Nova Etapa 4.5 gera o código de 6 dígitos por software
+  (`scripts/gerar_totp.py`, RFC 6238) a partir do seed em `.env` (`PJE_TOTP_SEED`), sem depender
+  do celular. Diagnóstico em `references/2fa-totp.md`.
+- **Gates do pipeline-sentenca no scaffold**: `verificar_sentenca.py` (varredura/`--etapa`/`--gate`)
+  e `merge_sentenca.py` (merge da sentença por script, sem LLM) em `scaffold/scripts/`.
 
 ### Modernizado
 
@@ -13,12 +28,21 @@
   - `/criar-skill`: padrão determinístico para skills com scripts ([INICIO]/[OK]/[ERRO]/[FIM], retorno resumido, zero-read/gate para mini-pipelines).
 - **Templates** (`orquestrador`, `agent`, `skill`, `skill-agentica`) e **checklists/referências** (`checklist-validacao-orquestrador` → 130 pts com seções 7 e 8; `checklist-validacao-agent`; `variantes-subagente`) espelhados no padrão v3.0.
 - Motor de gate embarcado em `scaffold/scripts/verificar_pipeline.py` (instalado no projeto-alvo por `/instalar-superjurista`).
+- **`scaffold/commands/pipeline-sentenca.md` v2.2 → v3.0**: retomada por etapa (etapa válida não
+  redespacha), validação SÓ por script, subagente responde 1 linha, merge por script e
+  paralelismo permitido ENTRE processos (fim do "um por vez").
+- **`scaffold/project-claude.md`** com a doutrina v3.0 (validação por gate de script; múltiplos
+  processos em paralelo na mesma sessão) e a nota do 2FA.
+- **`spec/README.md`** sincronizado com a v3.0 (nota de atualização no topo; seções antigas de
+  validação por leitura marcadas como legado).
 
 ### Corrigido
 
 - Frontmatter YAML dos três meta-criadores movido para o TOPO do arquivo (antes vinha depois do H1, o que quebrava o carregamento do command).
 - Removida referência à skill inexistente `brainstorming-pipeline` em `/criar-orquestrador`.
 - Corrigidos caminhos de guia inexistentes em `/criar-skill` (`docs/2026-01-23-guia-escrita-skills.md` → `${CLAUDE_PLUGIN_ROOT}/skills/criar-skill/references/skill-writing-guide.md`).
+- `spec/README.md`: caminhos com o typo `.claude/specs/` corrigidos para `spec/` do plugin.
+- Removido o MCP `jurisdf-tjdft` (descontinuado) da tabela de servidores do `scaffold/project-claude.md`.
 
 ## 1.0.0 (2026-03-20)
 

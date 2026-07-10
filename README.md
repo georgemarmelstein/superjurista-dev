@@ -86,6 +86,7 @@ npm update -g @anthropic-ai/claude-code
 
 ## Skills
 
+- **criar-sistema**: Motor de geracao de sistemas agenticos inteiros (1 orquestrador + N agentes + M skills) a partir de uma descricao de intencao -- blueprint como contrato, geracao em ondas por 5 agentes especializados (geradores + validadores adversariais), staging e commit atomico. Flags: `--revisar`, `--target=PATH`.
 - **criar-skill**: Workflow TDD para criacao de skills -- garante que a skill ensina o comportamento correto ao Claude, com testes de conformidade e otimizacao para busca interna.
 - **criar-mcp-precedente**: Guia para criar servidores MCP de jurisprudencia com scraping de tribunais, incluindo padroes de extracao e configuracao de endpoints.
 - **criar-pje-download**: Cria skills de download do PJE para qualquer tribunal via engenharia reversa de arquivos HAR -- identifica endpoints, cookies, headers e gera scripts Python parametrizados.
@@ -125,6 +126,7 @@ projeto/
 │   └── mcp-servers/
 │       ├── tjsc-eproc/     # Jurisprudencia TJSC
 │       └── tcu-jurisprudencia/ # Jurisprudencia TCU
+├── scripts/                # Gates deterministicos v3.0 (verificar_pipeline, verificar_sentenca, merge_sentenca)
 ├── data/
 │   ├── sentenca/           # Processos para sentenca
 │   └── decisao/            # Processos para decisao
@@ -134,7 +136,7 @@ projeto/
 
 ## Framework
 
-O sistema baseia-se no framework v2.7 de orquestracao agentica com padrao "Orquestrador Cego" e injecao de contexto. Neste padrao, commands (orquestradores) delegam tarefas via Task tool para subagentes que possuem contexto isolado -- cada agente le seu proprio prompt e recebe apenas os caminhos de workspace necessarios. Templates e referencias completas estao disponiveis em `spec/`.
+O sistema baseia-se no framework v3.0 de orquestracao agentica com padrao "Orquestrador Cego" e injecao de contexto. Neste padrao, commands (orquestradores) delegam tarefas via Task tool para subagentes que possuem contexto isolado -- cada agente le seu proprio prompt, GRAVA o documento em disco e responde 1 linha de status. A validacao entre etapas e deterministica, por gate de script (`scripts/verificar_<sistema>.py`), e os pipelines sao retomaveis: a varredura inicial lista as etapas PENDENTES e etapa ja valida nao roda de novo. Templates e referencias completas estao disponiveis em `spec/`.
 
 ## Dependencias
 
