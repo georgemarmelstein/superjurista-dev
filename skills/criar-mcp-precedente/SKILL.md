@@ -1,10 +1,12 @@
 ---
 name: criar-mcp-precedente
 description: >
-  Use when creating MCP servers for Brazilian court jurisprudence searches.
-  Focuses on scraping techniques (JSF/AJAX, HTML parsing) for tribunals without
-  public REST APIs. Includes automatic boolean syntax discovery.
-  Keywords: mcp tribunal, jurisprudência, scraping, precedentes, criar mcp.
+  Use when creating MCP servers for court jurisprudence searches — Brazilian tribunals
+  and international courts (proven on CJF, TCU, TJSC/eProc and HUDOC/ECHR). Focuses on
+  scraping techniques (JSF/AJAX, HTML parsing, undocumented JSON APIs) for courts without
+  public REST APIs. Includes automatic boolean syntax discovery and routing: scraping MCP
+  vs mcp-builder (documented REST) vs Chrome-MCP skill (per-request CAPTCHA).
+  Keywords: mcp tribunal, jurisprudência, scraping, precedentes, criar mcp, corte internacional.
 ---
 
 # criar-mcp-precedente
@@ -16,7 +18,7 @@ description: >
 </identidade>
 
 <proposito>
-  <objetivo>Criar MCPs standalone para busca de jurisprudência em tribunais brasileiros</objetivo>
+  <objetivo>Criar MCPs standalone para busca de jurisprudência em tribunais brasileiros e cortes internacionais</objetivo>
   <razao>Tribunais usam sistemas heterogêneos (JSF, AJAX, APIs não documentadas) que exigem engenharia reversa</razao>
   <resultado>MCP funcional com tools buscar_*, gerar_relatorio_*, listar_* e documentação de sintaxe booleana</resultado>
 </proposito>
@@ -35,7 +37,9 @@ description: >
     - Tribunal tem API REST documentada (usar mcp-builder)
     - Apenas quer fazer buscas pontuais (usar MCPs existentes)
     - Tribunal já tem MCP implementado no projeto
-    - Tribunal usa reCAPTCHA v3 (bloqueio insuperável para scraping)
+    - Portal exige CAPTCHA por requisição (reCAPTCHA/hCaptcha) — a rota comprovada é
+      criar uma SKILL que busca via Chrome MCP, não um MCP server (caso real:
+      jurisprudencia-eleitoral para o SJUR/TSE)
   </exclusoes>
 
   <keywords>
@@ -66,6 +70,11 @@ description: >
     3. Diretório customizado
        → Informar caminho
     ```
+
+    Em qualquer opção, o arquivo pode viver onde o usuário preferir — o que ativa o MCP
+    é o REGISTRO no `.mcp.json` da raiz do projeto, com caminho ABSOLUTO do server.py
+    (ver Fase 3.4). NÃO registrar em settings.json: config de MCP ali é padrão antigo
+    e quebra silenciosamente (o servidor simplesmente não aparece).
 
     ### 0.3 Analisar tipo de API
     Usar WebFetch na URL para detectar:
@@ -99,17 +108,24 @@ description: >
     Deseja que eu instale a mcp-builder?"
     ```
 
-    **Se reCAPTCHA v3 detectado:**
+    **Se CAPTCHA por requisição detectado (reCAPTCHA v3/v2, hCaptcha):**
     ```
-    "Este tribunal usa reCAPTCHA v3 invisível, que é um bloqueio insuperável
-    para scraping automatizado.
+    "Este portal exige um token de CAPTCHA a cada busca — bloqueio insuperável
+    para um MCP server em Python puro.
 
     Opções:
-    1. Chrome MCP - Automatizar navegador real (único caminho viável)
-    2. Desistir - Tribunal não é viável para MCP de scraping
+    1. SKILL via Chrome MCP (rota comprovada) — em vez de MCP server, criar uma
+       skill que roda a busca DENTRO do navegador real: o CAPTCHA gera o token
+       normalmente porque há um Chrome de verdade. Modelo vivo:
+       .claude/skills/jurisprudencia-eleitoral (SJUR/TSE, hCaptcha invisível,
+       token de uso único por requisição, hcaptcha.reset() + retry).
+    2. Endpoints parcialmente abertos — antes de desistir, verificar se PARTE da
+       superfície dispensa CAPTCHA (no TSE, o download do inteiro teor em PDF é
+       aberto: só a busca é protegida). Um MCP híbrido pode cobrir a parte aberta.
+    3. Desistir — portal inviável.
 
-    O reCAPTCHA v3 analisa comportamento do usuário (mouse, teclado, tempo)
-    e gera tokens que não podem ser replicados programaticamente."
+    O CAPTCHA comportamental analisa mouse, teclado e tempo, e gera tokens que
+    não podem ser replicados programaticamente."
     ```
 
     Se não houver bloqueios, continuar para Fase 1.
@@ -258,6 +274,20 @@ description: >
     - [IMPLEMENTACAO_SESSAO] → se requires_session
     - [IMPLEMENTACAO_EXTRACAO] → baseado em response_format
 
+    Regras aprendidas em campo (detalhes em references/licoes-de-campo.md):
+    - Implementar a busca UMA vez, na `_fazer_busca()` compartilhada — buscar_* e
+      gerar_relatorio_* apenas a chamam (nos 3 MCPs reais do projeto é assim).
+    - Portal com charset legado (eProc e sistemas antigos servem iso-8859-1):
+      fixar `response.encoding` explicitamente, senão acentos viram mojibake.
+    - Paginação: quando o portal pagina, iterar até max_resultados reaproveitando
+      cookies da primeira resposta (padrão TJSC).
+    - Portal com múltiplas bases (acórdãos/súmulas/normas, padrão TCU): parâmetro
+      `base` com `Literal[...]`, um extractor por base, e a 3ª tool vira
+      `listar_bases_*` em vez de `listar_filtros_*`.
+    - API com linguagem de query própria (padrão HUDOC): construir a query por
+      funções dedicadas (`_construir_query`, `_or_filter`), nunca por concatenação
+      solta na tool.
+
     ### 3.3 Gerar requirements.txt
 
     ```
@@ -272,7 +302,17 @@ description: >
 
     Incluir:
     - Instruções de instalação
-    - Como adicionar ao settings.json
+    - Como registrar no `.mcp.json` da raiz do projeto (caminho absoluto):
+      ```json
+      {
+        "mcpServers": {
+          "[nome-tribunal]": {
+            "command": "python",
+            "args": ["C:\\caminho\\absoluto\\para\\[nome-tribunal]\\server.py"]
+          }
+        }
+      }
+      ```
     - Tabela completa de sintaxe booleana
     - Exemplos de uso das tools
 
@@ -281,6 +321,7 @@ description: >
     1. Verificar sintaxe: `python -m py_compile server.py`
     2. Se possível, fazer busca de teste
     3. Validar output XML/Markdown
+    4. Registrar no `.mcp.json` e lembrar: o servidor só carrega em sessão nova
   </passo>
 
 </instrucoes>
@@ -293,10 +334,12 @@ description: >
   | Tipo | Exemplo | Características |
   |------|---------|-----------------|
   | JSF/AJAX | CJF | ViewState, Faces-Request, partial/ajax |
-  | API REST | JurisDF/TJDFT | JSON puro, endpoints /api/v1/ |
+  | API JSON não documentada | TCU, HUDOC (CEDH) | JSON puro descoberto via Network tab; às vezes com linguagem de query própria e múltiplas bases |
+  | API REST documentada | JurisDF/TJDFT (descontinuada) | JSON + /api/v1/ → recomendar mcp-builder |
   | API + Auth | JULIA/TRF5 | REST com login obrigatório |
+  | HTML legado (eProc) | TJSC | POST form-urlencoded, resposta HTML em iso-8859-1, paginação por endpoint AJAX próprio |
   | ASP.NET | Alguns TJs | __VIEWSTATE, __EVENTVALIDATION |
-  | reCAPTCHA v3 | TJSP (e-SAJ) | **BLOQUEIO INSUPERÁVEL** - requer Chrome MCP |
+  | CAPTCHA por requisição | TSE (SJUR, hCaptcha), TJSP (e-SAJ, reCAPTCHA v3) | **BLOQUEIO para MCP** — rota: skill via Chrome MCP |
 
   ### Padrão de tools (obrigatório)
 
@@ -305,6 +348,8 @@ description: >
   1. `buscar_[tribunal]` → Retorna XML estruturado
   2. `gerar_relatorio_[tribunal]` → Retorna Markdown formatado
   3. `listar_filtros_[tribunal]` → Lista parâmetros disponíveis
+     (variação legítima: `listar_bases_[tribunal]` quando o portal tem múltiplas
+     bases pesquisáveis — padrão TCU: acórdãos, jurisprudência selecionada, normas)
 
   ### Formato XML de saída
 
@@ -326,7 +371,8 @@ description: >
 
   Ver exemplos reais em:
   - references/exemplo-cjf.md (scraping JSF/AJAX)
-  - references/exemplo-jurisdf.md (API REST)
+  - references/exemplo-jurisdf.md (API REST — serviço descontinuado; padrão continua válido)
+  - references/licoes-de-campo.md (lições dos MCPs reais: TCU, TJSC/eProc, HUDOC e o caso TSE)
   - references/template-server.py (template base)
   - references/sintaxe-booleanos.md (guia de descoberta)
 
@@ -348,17 +394,23 @@ description: >
   **Tribunais conhecidos com reCAPTCHA v3:**
   - TJSP (e-SAJ): `6LcXJIAbAAAAAOwprTGEEYwRSe-HMYD-Ys0pSR6f`
 
-  **Única solução viável: Chrome MCP**
-  - Automatiza navegador real do usuário
-  - reCAPTCHA v3 funciona normalmente (humano está presente)
+  **Solução comprovada: SKILL via Chrome MCP (não um MCP server)**
+  - Automatiza o navegador real do usuário — o CAPTCHA gera o token normalmente
+    porque há um humano/Chrome de verdade presente
+  - Caso real implementado: skill `jurisprudencia-eleitoral` para o SJUR/TSE
+    (hCaptcha invisível, token de uso único por busca): a skill navega até o SPA,
+    espera `window.hcaptcha` carregar, executa a busca via `javascript_tool` e
+    faz `hcaptcha.reset()` + retry (até 3x) para cada nova requisição
+  - Dica antes de desistir: mapear a superfície ABERTA do portal — no TSE, o
+    download do inteiro teor (PDF) dispensa CAPTCHA; só a busca é protegida
   - Limitação: requer Chrome aberto e extensão instalada
 
   ### Outros Bloqueadores
 
   | Tipo | Identificação | Viabilidade |
   |------|---------------|-------------|
-  | reCAPTCHA v2 | Checkbox "Não sou robô" | Inviável sem Chrome |
-  | hCaptcha | `hcaptcha.com/1/api.js` | Inviável sem Chrome |
+  | reCAPTCHA v2 | Checkbox "Não sou robô" | Inviável sem Chrome → skill Chrome MCP |
+  | hCaptcha | `hcaptcha.com/1/api.js` ou `window.hcaptcha` no SPA | Inviável sem Chrome → skill Chrome MCP (caso TSE) |
   | Cloudflare | `cf-ray`, `__cf_bm` cookie | Às vezes contornável |
   | WAF genérico | 403/429 após poucas requests | Rate limiting ajuda |
 </conhecimento>
@@ -378,6 +430,9 @@ description: >
     - Testar wildcards em prefixo E sufixo
     - Incluir tabela de booleanos na docstring da tool buscar_*
     - Gerar README.md com instruções completas
+    - Registrar no `.mcp.json` da raiz do projeto (caminho absoluto), nunca em settings.json
+    - Implementar a busca UMA vez (`_fazer_busca` compartilhada entre buscar_* e gerar_relatorio_*)
+    - Fixar `response.encoding` quando o portal servir charset legado (ex.: iso-8859-1 no eProc)
     - Recomendar mcp-builder se detectar API REST aberta
   </sempre>
 </restricoes>
@@ -397,7 +452,8 @@ description: >
        que não podem ser replicados programaticamente.
 
        Opções:
-       - Chrome MCP: Único caminho viável (automatiza navegador real)
+       - Skill via Chrome MCP: rota comprovada (modelo: jurisprudencia-eleitoral/TSE)
+       - Verificar endpoints parcialmente abertos (inteiro teor às vezes dispensa CAPTCHA)
        - Desistir: TJSP não é viável para MCP de scraping tradicional
 
        Sintaxe booleana descoberta (para referência):
@@ -424,14 +480,26 @@ description: >
     12. MCP criado! Adicione ao settings.json conforme README.
   </exemplo>
 
-  <exemplo tipo="detecta_api_rest">
-    **Usuário:** Criar MCP para o TJDFT
+  <exemplo tipo="detecta_api_json_nao_documentada">
+    **Usuário:** Criar MCP para o TCU
 
     **Claude:**
-    1. [WebFetch em jurisdf.tjdft.jus.br]
-    2. Detectei uma API REST documentada em /api/v1/pesquisa
-    3. Recomendo usar a skill mcp-builder que é otimizada para APIs REST.
-    4. Repositório: https://github.com/anthropics/anthropic-tools
-    5. Deseja que eu instale a mcp-builder?
+    1. [Chrome MCP: read_network_requests durante uma busca no portal]
+    2. Detectei uma API JSON não documentada (POST retornando JSON puro), com
+       três bases distintas: acórdãos, jurisprudência selecionada e normas.
+    3. Sem CAPTCHA e sem login → viável para MCP de scraping.
+    4. Gero o MCP com parâmetro `base` (Literal), um extractor por base e a
+       terceira tool como `listar_bases_tcu`.
+  </exemplo>
+
+  <exemplo tipo="detecta_api_rest_documentada">
+    **Usuário:** Criar MCP para um tribunal com Swagger público
+
+    **Claude:**
+    1. [WebFetch na URL → documentação OpenAPI visível]
+    2. Detectei uma API REST documentada.
+    3. Recomendo usar a skill mcp-builder, otimizada para APIs REST
+       (repositório oficial de skills da Anthropic: github.com/anthropics/skills).
+    4. Deseja que eu siga com a mcp-builder?
   </exemplo>
 </exemplos>

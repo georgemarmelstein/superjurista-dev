@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.1.1 (2026-07-10)
+
+### Modernizado
+
+- **Skill `criar-mcp-precedente`** atualizada com as lições dos 4 casos reais desde a sua
+  criação (TCU 02/2026, TJSC/eProc 03/2026, HUDOC/CEDH 07/2026 e TSE/SJUR 07/2026):
+  - **Registro no `.mcp.json`** da raiz do projeto (caminho absoluto) — a instrução antiga
+    (settings.json) é padrão descontinuado e falha silenciosamente.
+  - **Template refatorado**: busca implementada uma única vez em `_fazer_busca()`
+    compartilhada entre `buscar_*` e `gerar_relatorio_*` (fim do convite ao copy-paste),
+    com notas de charset legado (`response.encoding = "iso-8859-1"` para eProc) e de
+    paginação com reaproveitamento de cookies.
+  - **Terceira rota de roteamento**: CAPTCHA por requisição (hCaptcha/reCAPTCHA) ⇒ criar
+    SKILL via Chrome MCP em vez de MCP server (modelo comprovado no SJUR/TSE), com a dica
+    de mapear endpoints parcialmente abertos (inteiro teor às vezes dispensa CAPTCHA).
+  - **Padrões novos no conhecimento**: múltiplas bases pesquisáveis (TCU — `Literal` +
+    extractor por base + `listar_bases_*`), query builder para APIs com linguagem própria
+    (HUDOC) e escopo ampliado a cortes internacionais.
+  - **Nova referência** `references/licoes-de-campo.md`; exemplo JurisDF anotado como
+    descontinuado (padrão continua válido); URL da mcp-builder corrigida
+    (github.com/anthropics/skills).
+
 ## 1.1.0 (2026-07-10)
 
 ### Adicionado

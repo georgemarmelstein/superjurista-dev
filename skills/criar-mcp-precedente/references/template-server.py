@@ -198,6 +198,44 @@ def _handle_error(e: Exception) -> str:
     return f"Erro: {type(e).__name__}: {str(e)}"
 
 
+async def _fazer_busca(busca: str, max_resultados: int) -> tuple:
+    """Executa a busca no portal e retorna (resultados, total).
+
+    IMPLEMENTAR A BUSCA UMA UNICA VEZ AQUI — buscar_* e gerar_relatorio_*
+    apenas chamam esta funcao (padrao dos MCPs reais: TCU, TJSC, HUDOC).
+    """
+    page_size = min(max_resultados, 100)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # [IMPLEMENTAR REQUISICAO CONFORME ENDPOINT DESCOBERTO NA FASE 1]
+        # Exemplo para POST JSON:
+        # response = await client.post(
+        #     API_URL,
+        #     json={"query": busca, "tamanho": page_size},
+        #     headers=HEADERS,
+        # )
+        # [SE O PORTAL SERVIR CHARSET LEGADO — comum em eProc e sistemas antigos:]
+        # response.encoding = "iso-8859-1"
+        # response.raise_for_status()
+        # data = response.json()  # ou response.text para HTML
+
+        data = {}  # Placeholder - implementar
+
+        resultados = _extrair_resultados(data)
+        total = len(resultados)  # [OU extrair o total real da resposta]
+
+        # [SE HOUVER PAGINACAO E max_resultados > page_size:]
+        # cookies = dict(response.cookies)  # reaproveitar sessao da 1a pagina
+        # pages_needed = (max_resultados + page_size - 1) // page_size
+        # for page in range(2, pages_needed + 1):
+        #     if len(resultados) >= max_resultados:
+        #         break
+        #     pag_resp = await client.post(PAGINATE_URL, data={...}, cookies=cookies)
+        #     resultados.extend(_extrair_resultados(pag_resp.text))
+
+    return resultados[:max_resultados], total
+
+
 # ============================================================
 # PYDANTIC MODELS
 # ============================================================
@@ -302,26 +340,11 @@ async def buscar_[tribunal](params: BuscaInput) -> str:
             - fonte: Link para documento
     """
     try:
-        # [IMPLEMENTAR BUSCA CONFORME ENDPOINT]
-        async with httpx.AsyncClient() as client:
-            # Exemplo para POST JSON:
-            # response = await client.post(
-            #     API_URL,
-            #     json={"query": params.busca, "tamanho": params.max_resultados},
-            #     headers=HEADERS,
-            #     timeout=30.0
-            # )
-            # response.raise_for_status()
-            # data = response.json()
-
-            # Placeholder - implementar
-            data = {}
-
-        resultados = _extrair_resultados(data)[:params.max_resultados]
+        resultados, total = await _fazer_busca(params.busca, params.max_resultados)
         xml = _formatar_xml(resultados, "jurisprudencia_[tribunal]")
 
         # Adicionar metadados
-        meta = f'<!-- Busca: "{params.busca}" | Total: {len(resultados)} -->\n'
+        meta = f'<!-- Busca: "{params.busca}" | Retornados: {len(resultados)} | Total no portal: {total} -->\n'
         return meta + xml
 
     except Exception as e:
@@ -356,11 +379,7 @@ async def gerar_relatorio_[tribunal](params: RelatorioInput) -> str:
         str: Relatorio em Markdown com ementas e metadados
     """
     try:
-        # [IMPLEMENTAR BUSCA - MESMO CODIGO DE buscar_*]
-        async with httpx.AsyncClient() as client:
-            data = {}  # Placeholder
-
-        resultados = _extrair_resultados(data)[:params.max_resultados]
+        resultados, _total = await _fazer_busca(params.busca, params.max_resultados)
         data_hora = datetime.now().strftime("%d/%m/%Y as %H:%M")
 
         linhas = [

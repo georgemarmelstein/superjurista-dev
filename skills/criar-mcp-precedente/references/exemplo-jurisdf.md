@@ -1,5 +1,9 @@
 # Exemplo: JurisDF/TJDFT - API REST
 
+> **NOTA (07/2026):** o serviço JurisDF foi descontinuado pelo TJDFT — as URLs abaixo
+> não respondem mais. O PADRÃO de implementação (API REST com JSON) continua válido
+> e é o mesmo dos MCPs vivos de TCU e HUDOC (ver `licoes-de-campo.md`).
+
 Este documento descreve o padrão de implementação usado no MCP do JurisDF (TJDFT), que usa uma API REST pública com JSON.
 
 ## Características do Sistema
