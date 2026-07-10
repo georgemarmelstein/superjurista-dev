@@ -88,7 +88,7 @@ npm update -g @anthropic-ai/claude-code
 
 - **criar-sistema**: Motor de geracao de sistemas agenticos inteiros (1 orquestrador + N agentes + M skills) a partir de uma descricao de intencao -- blueprint como contrato, geracao em ondas por 5 agentes especializados (geradores + validadores adversariais), staging e commit atomico. Flags: `--revisar`, `--target=PATH`.
 - **criar-skill**: Workflow TDD para criacao de skills -- garante que a skill ensina o comportamento correto ao Claude, com testes de conformidade e otimizacao para busca interna.
-- **criar-mcp-precedente**: Guia para criar servidores MCP de jurisprudencia com scraping de tribunais, incluindo padroes de extracao e configuracao de endpoints.
+- **criar-mcp-precedente**: Guia para criar servidores MCP de jurisprudencia — tribunais brasileiros e cortes internacionais (comprovado em CJF, TCU, TJSC/eProc e HUDOC/CEDH). Descoberta de endpoints e sintaxe booleana, template com busca compartilhada, registro via `.mcp.json` e roteamento em 3 rotas: MCP de scraping, mcp-builder (REST documentada) ou skill via Chrome MCP (portais com CAPTCHA por requisicao).
 - **criar-pje-download**: Cria skills de download do PJE para qualquer tribunal via engenharia reversa de arquivos HAR -- identifica endpoints, cookies, headers e gera scripts Python parametrizados.
 
 ## O que o /instalar-superjurista cria
