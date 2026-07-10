@@ -42,8 +42,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │   ├── capturar-sessao-pje/  # Captura sessão via Chrome MCP
 │   ├── criar-mcp-precedente/ # Criação de MCPs de jurisprudência
 │   └── fork-terminal/  # Execução paralela em terminais
-└── mcp-servers/        # SERVIDORES MCP LOCAIS
-    └── tjsc-eproc/     # Jurisprudência TJSC via eProc (público)
+└── mcp-servers/        # SERVIDORES MCP LOCAIS (registrados no .mcp.json da raiz)
+    ├── bnp-api/            # Banco Nacional de Precedentes (STF/STJ, CNJ)
+    ├── cjf-jurisprudencia/ # Portal unificado CJF (STF, STJ, TRFs, TNU histórico)
+    ├── tcu-jurisprudencia/ # TCU (acórdãos, jurisprudência selecionada, normas)
+    ├── tjsc-eproc/         # Jurisprudência TJSC via eProc (público)
+    └── tnu-eproc/          # TNU viva via eProc (com inteiro teor)
 
 scripts/                # GATES DETERMINÍSTICOS (v3.0)
 ├── verificar_pipeline.py   # Motor genérico de validação por âncoras
@@ -132,10 +136,14 @@ pip install requests beautifulsoup4 pdfplumber PyPDF2 pdf2image pytesseract
 |--------|--------|------------------|
 | `bnp-api` | Banco Nacional de Precedentes (STF/STJ) | `+termo -termo "frase exata"` |
 | `cjf-jurisprudencia` | Portal CJF (STF, STJ, TRFs) | `TERMO E OU NAO ADJ PROX COM MESMO` (MAIÚSCULO) |
-| `julia-trf5` | Sistema JULIA do TRF5 | `termo e ou nao prox adj $` (minúsculo) |
+| `tcu-jurisprudencia` | TCU — 3 bases (acórdão, jurisprudência, norma) | Ver `listar_bases_tcu` |
 | `tjsc-eproc` | Jurisprudência do TJSC (eProc) | `termo ou nao prox "frase" *wildcard` (case-insensitive) |
-| `infojuris-cnj` | InfoJuris do CNJ | Precedentes qualificados |
+| `tnu-eproc` | TNU viva (eProc), com inteiro teor por id | `termo e ou nao prox "frase" *wildcard` (minúsculo; `prox` SEM número) |
+| `julia-trf5` | Sistema JULIA do TRF5 (não incluído no scaffold — requer credenciais) | `termo e ou nao prox adj $` (minúsculo) |
 | `claude-in-chrome` | Automação browser (sessão PJE, login) | Controle nativo do navegador |
+
+Divisão de trabalho entre as bases: STF/STJ atuais → BNP; TRF5 → JULIA; TNU viva (com
+inteiro teor) → tnu-eproc; TRFs/TRU e histórico STF-STJ → CJF unificada.
 
 ## Convenções
 

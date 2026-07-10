@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.2.0 (2026-07-10)
+
+### Adicionado
+
+- **3 novos servidores MCP no scaffold** (o `/instalar-superjurista` agora entrega 5):
+  - `bnp-api` — Banco Nacional de Precedentes do CNJ (STF/STJ, precedentes qualificados).
+  - `cjf-jurisprudencia` — portal unificado do CJF (STF, STJ, TRFs; JSF/PrimeFaces).
+  - `tnu-eproc` — jurisprudência VIVA da TNU via eProc, com inteiro teor real por id,
+    citação oficial pronta e sintaxe validada empiricamente (engenharia reversa 10/07/2026).
+- **Registro automático no `.mcp.json`**: nova etapa do `/instalar-superjurista` gera/mescla
+  o `.mcp.json` na raiz do projeto com os 5 servidores (caminho absoluto, merge idempotente
+  testado). Antes, o instalador copiava os arquivos mas nunca os registrava — os MCPs não
+  carregavam para quem instalava.
+
+### Corrigido
+
+- READMEs dos 5 servidores do scaffold normalizados: registro via `.mcp.json` da raiz
+  (settings.json era padrão antigo e falhava silenciosamente) e caminhos pessoais de
+  desenvolvimento removidos das instruções.
+- `scaffold/project-claude.md`: tabela de MCPs agora corresponde ao que o scaffold entrega
+  (adicionados TCU e TNU; JULIA anotado como não incluído por exigir credenciais), com a
+  divisão de trabalho entre as bases; árvore de diretórios atualizada.
+
 ## 1.1.1 (2026-07-10)
 
 ### Modernizado

@@ -1,6 +1,6 @@
 {
   "name": "superjurista-dev",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Meta-ferramentas para criar sistemas agenticos judiciais: agentes, orquestradores, skills, teams e scaffold completo do SuperJurista",
   "author": {
     "name": "George Marmelstein",

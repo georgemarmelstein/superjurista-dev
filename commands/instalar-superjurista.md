@@ -155,9 +155,21 @@ allowed-tools: Bash Read Write AskUserQuestion Glob
          ls .claude/agents/analise/*.md > /dev/null 2>&1 && echo "agents OK" || echo "agents FALHOU"
          ls .claude/skills/pje-download/SKILL.md > /dev/null 2>&1 && echo "skills OK" || echo "skills FALHOU"
          ls .claude/mcp-servers/tjsc-eproc/server.py > /dev/null 2>&1 && echo "mcp-servers OK" || echo "mcp-servers FALHOU"
+         ls .claude/mcp-servers/tnu-eproc/server.py > /dev/null 2>&1 && echo "mcp tnu OK" || echo "mcp tnu FALHOU"
          ls scripts/verificar_pipeline.py > /dev/null 2>&1 && echo "scripts OK" || echo "scripts FALHOU"
          ```
          Se qualquer um falhou → reportar erro e parar
+
+      5. **Registrar os MCPs no `.mcp.json` da raiz (caminho absoluto):**
+         Sem este registro os servidores NÃO carregam. NÃO usar settings.json — config
+         de MCP ali é padrão antigo e falha silenciosamente. O merge abaixo é idempotente
+         (preserva servidores já registrados pelo usuário):
+         ```bash
+         python -c "import json,os;raiz=os.path.abspath('.');S=['bnp-api','cjf-jurisprudencia','tcu-jurisprudencia','tjsc-eproc','tnu-eproc'];cfg=json.load(open('.mcp.json',encoding='utf-8')) if os.path.exists('.mcp.json') else {};m=cfg.setdefault('mcpServers',{});novos=[s for s in S if s not in m];[m.__setitem__(s,{'command':'python','args':[os.path.join(raiz,'.claude','mcp-servers',s,'server.py')]}) for s in novos];json.dump(cfg,open('.mcp.json','w',encoding='utf-8'),indent=2,ensure_ascii=False);print('[OK] .mcp.json: '+str(len(novos))+' registrados agora, '+str(len(m))+' no total')"
+         ```
+         (Testado e idempotente. Se o one-liner falhar no shell do usuário, gerar o
+         `.mcp.json` via Write com as mesmas 5 entradas e caminho absoluto.)
+         Avisar: os MCPs só carregam em SESSÃO NOVA do Claude Code.
     </acao>
   </fase>
 
@@ -246,13 +258,15 @@ allowed-tools: Bash Read Write AskUserQuestion Glob
         16 comandos (pipelines e utilitarios)
         49 agentes (7 categorias: analise, extracao, pesquisa, redacao, revisao, lista-trf, tribunal)
         6 skills (download PJE, conversao PDF, captura sessao, analise probatoria, erro medico, terminal)
-        2 servidores MCP (TJSC eProc, TCU Jurisprudencia)
+        5 servidores MCP (BNP/CNJ, CJF Unificada, TCU, TJSC eProc, TNU eProc)
+        Registro automatico no .mcp.json (carregam na PROXIMA sessao)
 
       Estrutura criada:
         .claude/commands/    -- pipelines e comandos
         .claude/agents/      -- agentes especializados
         .claude/skills/      -- skills com scripts
         .claude/mcp-servers/ -- servidores MCP locais
+        .mcp.json            -- registro dos MCPs (caminho absoluto)
         scripts/             -- motor de gate v3.0 (verificar_pipeline.py)
         data/sentenca/       -- processos para sentenca
         data/decisao/        -- processos para decisao
@@ -284,6 +298,7 @@ FLUXO /instalar-superjurista:
   │  ${CLAUDE_PLUGIN_ROOT}/scaffold/skills/      → .claude/skills/
   │  ${CLAUDE_PLUGIN_ROOT}/scaffold/mcp-servers/ → .claude/mcp-servers/
   │  ${CLAUDE_PLUGIN_ROOT}/scaffold/scripts/     → scripts/ (motor de gate v3.0)
+  │  + registro dos 5 MCPs no .mcp.json da raiz (caminho absoluto, merge idempotente)
   │
   ▼
   FASE 3: Arquivos Raiz

@@ -98,7 +98,7 @@ O comando `/instalar-superjurista` gera um sistema judicial completo no projeto 
 - **16 pipelines e comandos** para processamento judicial (sentenca, embargos, pesquisa, revisao, etc.)
 - **~52 agentes especializados** em 7 categorias (extracao, analise, pesquisa, redacao, revisao, lista-trf, tribunal)
 - **6 skills de dominio** (download PJE, conversao PDF, analise probatoria, captura de sessao, etc.)
-- **2 servidores MCP** (TJSC eProc, TCU)
+- **5 servidores MCP** (BNP/CNJ, CJF Unificada, TCU, TJSC eProc, TNU eProc), registrados automaticamente no `.mcp.json` do projeto
 - **Estrutura de dados pronta** (`data/sentenca/`, `data/decisao/`)
 - **CLAUDE.md e README.md** configurados para o projeto
 
@@ -124,8 +124,12 @@ projeto/
 │   │   ├── analisador-erro-medico/ # Analise de erro medico
 │   │   └── fork-terminal/  # Execucao paralela em terminais
 │   └── mcp-servers/
+│       ├── bnp-api/        # Banco Nacional de Precedentes (STF/STJ)
+│       ├── cjf-jurisprudencia/ # Portal unificado CJF
+│       ├── tcu-jurisprudencia/ # Jurisprudencia TCU (3 bases)
 │       ├── tjsc-eproc/     # Jurisprudencia TJSC
-│       └── tcu-jurisprudencia/ # Jurisprudencia TCU
+│       └── tnu-eproc/      # TNU viva com inteiro teor
+├── .mcp.json               # Registro dos 5 MCPs (gerado na instalacao)
 ├── scripts/                # Gates deterministicos v3.0 (verificar_pipeline, verificar_sentenca, merge_sentenca)
 ├── data/
 │   ├── sentenca/           # Processos para sentenca
