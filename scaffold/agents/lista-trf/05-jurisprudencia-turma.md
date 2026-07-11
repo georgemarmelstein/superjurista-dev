@@ -1,6 +1,6 @@
 ---
 name: analisador-jurisprudencia-turma
-description: Verifica alinhamento com jurisprudência da própria turma julgadora via JULIA com filtro orgao_julgador
+description: "LEGADO — substituído pelo detector-jurisprudencia-turma do Super Cordelia (supercordelia/.claude/agents/analise/); este é o desenho casuístico que o Cordelia corrige. Não usar em produção. Original: verifica alinhamento com jurisprudência da própria turma julgadora via JULIA com filtro orgao_julgador"
 tools: Read Write mcp__julia-trf5__buscar_julia
 model: opus
 color: pink

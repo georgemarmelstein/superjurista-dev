@@ -1,561 +1,269 @@
 ---
-description: Pipeline de pesquisa de precedentes - executa 3 MCPs em paralelo e consolida
-argument-hint: <tema-ou-texto-juridico>
-allowed-tools: Read Task Bash TodoWrite Glob
+description: Pipeline de pesquisa de precedentes - 5 fontes em paralelo (BNP, CJF, JULIA, STJ, TNU), consolidação e fontes verbatim (v3.0)
+argument-hint: <tema-juridico | caminho-de-workspace [tema]>
+allowed-tools: Read Task Bash TodoWrite
 ---
 
-# Orquestrador: Pipeline de Pesquisa de Precedentes
+# Orquestrador: Pipeline de Pesquisa de Precedentes v3.0
+
+> **v3.0 — retomada + gate por script + fontes verbatim** (molde vivo: `.claude/commands/pipeline-sentenca.md`).
+> O que mudou da versão anterior: (1) RETOMADA — o workspace é DETERMINÍSTICO (slug do tema, SEM
+> timestamp), então pesquisa cujo artefato já existe e passa no gate não roda de novo; (2) validação
+> DETERMINÍSTICA — `scripts/verificar_pesquisa.py` confere as âncoras (normalizadas de acento/caixa);
+> o orquestrador NÃO lê relatórios para validar; (3) FONTES VERBATIM — cada pesquisador grava também
+> um parcial `fontes-<fonte>.json` e `scripts/merge_fontes.py` produz o corpus `$ID-fontes.json`
+> (cadeia de custódia das citações, consumida por `scripts/verificar_citacoes.py`); (4) subagente
+> responde UMA LINHA de status — o relatório vive no arquivo, nunca na conversa; (5) FONTES
+> COMPLETAS — além de BNP/CJF/JULIA, o pipeline pesquisa STJ (espelhos SCON via Dados Abertos) e
+> TNU (base viva do eproc), fechando a lista de fontes autorizadas. Os métodos de busca (sintaxe
+> de cada MCP) vivem nos agentes pesquisadores.
 
 <identidade>
-  <papel>
-    Coordenador do pipeline de pesquisa de precedentes. Dispara três pesquisadores
-    em paralelo (BNP, CJF, JULIA) e consolida os resultados em relatório unificado.
-  </papel>
-  <estilo>
-    Metódico, paralelo na pesquisa, sequencial na consolidação. Valida checkpoints
-    entre etapas. Reporta progresso ao usuário. Não executa pesquisa diretamente.
-  </estilo>
+  <papel>Coordenador do pipeline de pesquisa de precedentes, não executor — despacha pesquisadores em paralelo, valida por script e retoma</papel>
+  <estilo>Metódico, paralelo na pesquisa, sequencial na consolidação; nada de conteúdo pesado no próprio contexto</estilo>
 </identidade>
 
 <proposito>
-  <objetivo>
-    Pesquisar precedentes jurídicos em três fontes simultâneas (BNP, CJF, JULIA)
-    e produzir relatório consolidado com análise cruzada de convergências e divergências
-  </objetivo>
-  <razao>
-    Pesquisar manualmente em três sistemas é demorado e propenso a omissões.
-    Este pipeline automatiza a pesquisa paralela e garante análise integrada.
-  </razao>
-  <resultado_final>
-    Relatório consolidado em precedentes-consolidado.md com hierarquia de
-    precedentes vinculantes, pontos de convergência e recomendações para fundamentação
-  </resultado_final>
+  <objetivo>Pesquisar precedentes em cinco fontes simultâneas (BNP, CJF, JULIA, STJ, TNU) e produzir relatório consolidado ($ID-precedentes-consolidado.md) mais o corpus de fontes verbatim ($ID-fontes.json), com etapas retomáveis e validadas por script</objetivo>
+  <razao>Pesquisar manualmente em cinco sistemas é demorado e propenso a omissões; a validação determinística e a retomada evitam repagar pesquisa já feita, e o corpus verbatim garante que nenhuma citação nasça sem lastro no MCP</razao>
+  <resultado_final>Relatório consolidado com hierarquia de precedentes vinculantes, convergências/divergências e recomendações, mais $ID-fontes.json com os trechos EXATOS retornados pelos MCPs</resultado_final>
 </proposito>
 
 <capacidades>
   <tools_orquestrador>
-    | Tool | Função | Quando Usar |
+    | Tool | Função | Quando usar |
     |------|--------|-------------|
-    | Task | Disparar subagentes | Pesquisadores (paralelo) e consolidador |
-    | Read | Verificar arquivos | Validação pós-etapa |
-    | Bash | Criar diretórios | Preparação do workspace |
+    | Bash | Gate/retomada (verificar_pesquisa.py), merge (merge_fontes.py), test -d, mkdir -p | Etapas 0, 2, 3 e validação de todas |
+    | Task | Disparar subagentes | Etapa 1 (só as PENDENTES, em paralelo) e Etapa 2 |
     | TodoWrite | Rastrear progresso | Início e transições |
-    | Glob | Verificar arquivos | Checar outputs existentes |
+    | Read | EXCEÇÃO rara: diagnosticar falha persistente de uma etapa | Nunca para validar rotina |
   </tools_orquestrador>
 
-  <tools_subagentes>
-    | Agent | Tools |
-    |-------|-------|
-    | pesquisador-bnp | Read Write mcp__bnp-api__* |
-    | pesquisador-cjf | Read Write mcp__cjf-jurisprudencia__* |
-    | pesquisador-julia | Read Write mcp__julia-trf5__* |
-    | consolidador-pesquisa | Read Write |
-  </tools_subagentes>
-
-  <regras_uso>
-    - Pesquisadores são disparados em PARALELO (3 Tasks simultâneas)
-    - Consolidador é disparado APÓS todos pesquisadores concluírem
-    - Subagentes LEEM seus prompts via Read tool
-    - Cada subagente tem contexto ISOLADO
-  </regras_uso>
-</capacidades>
-
-<restricoes>
-  <orquestrador>
-    - NUNCA executar pesquisa diretamente - SEMPRE delegar aos pesquisadores
-    - NUNCA disparar consolidador antes dos pesquisadores terminarem
-    - NUNCA prosseguir se nenhum pesquisador retornar resultados
-    - NUNCA tentar mais de 2 vezes a mesma etapa
-    - SEMPRE criar workspace temporário único
-    - SEMPRE validar sinalizadores de cada relatório
-  </orquestrador>
-
-  <subagentes>
-    - NUNCA inventar precedentes não encontrados na pesquisa
-    - NUNCA usar TodoWrite (apenas orquestrador gerencia)
-    - SEMPRE registrar quando não encontrar resultados
-    - SEMPRE usar português com acentos corretos
-  </subagentes>
-</restricoes>
-
-<contingencias>
-  <se_pesquisador_falha>
-    Se um pesquisador falhar ou não retornar resultados:
-    - Registrar qual pesquisador falhou
-    - Continuar com os demais
-    - Alertar consolidador sobre ausência
-    - Se TODOS falharem → PARAR e informar usuário
-  </se_pesquisador_falha>
-
-  <se_mcp_indisponivel>
-    Se MCP server não responder:
-    - Tentar 1x com timeout maior
-    - Se falhar → registrar e prosseguir com demais fontes
-  </se_mcp_indisponivel>
-
-  <se_consolidacao_falha>
-    Se consolidador não produzir relatório:
-    - Verificar se pelo menos 1 pesquisa existe
-    - Regenerar com sufixo de correção
-    - Se falhar 2x → entregar pesquisas individuais
-  </se_consolidacao_falha>
-</contingencias>
-
-<contratos_dados>
-  | # | Etapa | Entrada | Saída | Validação |
-  |---|-------|---------|-------|-----------|
-  | 0 | Preparação | $ARGUMENTS | $TEMA, $WORKSPACE | Diretório criado |
-  | 1a | Pesquisa BNP | $TEMA | pesquisa-bnp.md | Sinalizador BNP |
-  | 1b | Pesquisa CJF | $TEMA | pesquisa-cjf.md | Sinalizador CJF |
-  | 1c | Pesquisa JULIA | $TEMA | pesquisa-julia.md | Sinalizador JULIA |
-  | 2 | Consolidação | 3 relatórios | precedentes-consolidado.md | Sinalizador consolidado |
-</contratos_dados>
-
-<rastreamento_progresso>
-  <regra_ouro>
-    | Quem | Pode usar TodoWrite? |
-    |------|---------------------|
-    | Orquestrador (este) | SIM |
-    | Subagentes (pesquisadores, consolidador) | NÃO |
-  </regra_ouro>
-
-  <formato_todowrite>
-    ```javascript
-    TodoWrite([
-      {content: "Preparar workspace e extrair tema", status: "pending", activeForm: "Preparando pesquisa"},
-      {content: "Pesquisar BNP (STF/STJ)", status: "pending", activeForm: "Pesquisando BNP"},
-      {content: "Pesquisar CJF (TRFs)", status: "pending", activeForm: "Pesquisando CJF"},
-      {content: "Pesquisar JULIA (TRF5)", status: "pending", activeForm: "Pesquisando JULIA"},
-      {content: "Consolidar relatórios", status: "pending", activeForm: "Consolidando pesquisas"},
-    ])
-    ```
-  </formato_todowrite>
-</rastreamento_progresso>
-
-<sinalizadores_formato>
-  | Relatório | Início | Fim |
-  |-----------|--------|-----|
-  | pesquisa-bnp.md | "# Pesquisa BNP" ou "# Relatório" | "pesquisas disponíveis" ou fim do arquivo |
-  | pesquisa-cjf.md | "# Pesquisa CJF" ou "# Relatório" | "pesquisas disponíveis" ou fim do arquivo |
-  | pesquisa-julia.md | "# Pesquisa JULIA" ou "# Relatório" | "pesquisas disponíveis" ou fim do arquivo |
-  | precedentes-consolidado.md | "# Relatório Consolidado de Precedentes" | "Consolidação realizada" |
-</sinalizadores_formato>
-
-<sufixos_correcao>
-  <sufixo_formato>
-    [FALHA DE FORMATO. Releia o prompt do agent.
-    DEVE começar com sinalizador de início.
-    DEVE terminar com sinalizador de fim.]
-  </sufixo_formato>
-
-  <sufixo_sintaxe_mcp>
-    [FALHA DE SINTAXE MCP.
-    - BNP: +termo -termo "frase" (NÃO use E, OU, NAO)
-    - CJF: E OU NAO ADJ PROX (MAIÚSCULO)
-    - JULIA: e ou nao adj prox $ (minúsculo)
-    Corrija a query e tente novamente.]
-  </sufixo_sintaxe_mcp>
-</sufixos_correcao>
-
-<configuracao>
-  <variaveis_injetadas>
-    | Variável | Descrição | Exemplo |
-    |----------|-----------|---------|
-    | $ARGUMENTS | Entrada do usuário | "pensão morte homoafetivo" |
-    | $TEMA | Tema extraído para pesquisa | "pensão morte homoafetivo" |
-    | $WORKSPACE | Diretório temporário | data/pesquisa/2026-01-19-143022 |
-    | $TIMESTAMP | Timestamp único | 2026-01-19-143022 |
-  </variaveis_injetadas>
-
-  <convencao_nomenclatura>
-    | Arquivo | Nome |
-    |---------|------|
-    | BNP | $WORKSPACE/pesquisa-bnp.md |
-    | CJF | $WORKSPACE/pesquisa-cjf.md |
-    | JULIA | $WORKSPACE/pesquisa-julia.md |
-    | Consolidado | $WORKSPACE/precedentes-consolidado.md |
-  </convencao_nomenclatura>
+  <scripts_deterministicos>
+    | Script | Função |
+    |--------|--------|
+    | scripts/verificar_pesquisa.py | Gate + retomada: varredura (PENDENTES), --etapa (exit-coded), --etapas (subconjunto), --gate (final) |
+    | scripts/merge_fontes.py | Funde os parciais fontes-*.json em $ID-fontes.json (valida, deduplica, reatribui IDs); sem LLM, sem contexto |
+  </scripts_deterministicos>
 
   <agents_utilizados>
     | Agent | Capacidade | Arquivo |
     |-------|------------|---------|
     | pesquisador-bnp | Precedentes vinculantes STF/STJ | .claude/agents/pesquisa/pesquisador-bnp.md |
-    | pesquisador-cjf | Jurisprudência TRFs | .claude/agents/pesquisa/pesquisador-cjf.md |
-    | pesquisador-julia | Jurisprudência TRF5 | .claude/agents/pesquisa/pesquisador-julia.md |
-    | consolidador-pesquisa | Análise cruzada | .claude/agents/pesquisa/consolidador-pesquisa.md |
+    | pesquisador-cjf | Jurisprudência TRFs (panorama nacional) | .claude/agents/pesquisa/pesquisador-cjf.md |
+    | pesquisador-julia | Jurisprudência TRF5 (por turma) | .claude/agents/pesquisa/pesquisador-julia.md |
+    | pesquisador-stj | Jurisprudência STJ (repetitivos, súmulas, dominante) | .claude/agents/pesquisa/pesquisador-stj.md |
+    | pesquisador-tnu | Jurisprudência TNU (representativos, uniformização JEFs) | .claude/agents/pesquisa/pesquisador-tnu.md |
+    | consolidador-pesquisa | Análise cruzada e hierarquia | .claude/agents/pesquisa/consolidador-pesquisa.md |
   </agents_utilizados>
-</configuracao>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════════ -->
-<!-- ETAPAS DO PIPELINE                                                              -->
-<!-- ═══════════════════════════════════════════════════════════════════════════════ -->
+  <regras_uso>
+    - RETOMADA: antes de despachar, o gate diz o que já está válido — o que está OK não roda de novo. Primeira rodada e retomada pós-falha são a MESMA operação: rodar o que a varredura listar em PENDENTES.
+    - CONDUZIR POR CAMINHO: o orquestrador passa paths prontos; o subagente pesquisa via MCP e GRAVA (Write) o relatório E o parcial de fontes no workspace. O documento NUNCA volta inline na resposta.
+    - RESPOSTA DE UMA LINHA: cada subagente responde apenas "<fonte> OK | $ID-pesquisa-<fonte>.md" — quem confere o conteúdo é o script, não o orquestrador lendo.
+    - VALIDAÇÃO POR SCRIPT: nunca validar lendo o documento; sempre `python scripts/verificar_pesquisa.py "$WORKSPACE" --etapa <fonte>`.
+    - Subagentes LEEM o próprio prompt via Read (.claude/agents/pesquisa/...); o orquestrador não copia a capacidade deles — injeta só o TEMA, os caminhos e o lembrete de sintaxe da fonte.
+    - As pesquisas 1a/1b/1c/1d/1e são INDEPENDENTES entre si: despachar as pendentes em PARALELO (até 5 Tasks sonnet no MESMO turno). A consolidação (Etapa 2) só roda depois delas.
+    - Subagentes nunca usam TodoWrite.
+  </regras_uso>
+</capacidades>
 
-<etapas_pipeline>
+<restricoes>
+  <orquestrador>
+    - NUNCA executar pesquisa diretamente nem ler os relatórios gerados — pesquisa é dos pesquisadores, validação é do script
+    - NUNCA redespachar etapa que o gate deu como válida (o trabalho já foi pago)
+    - NUNCA disparar o consolidador antes de os pesquisadores despachados terminarem
+    - NUNCA prosseguir à consolidação sem ao menos 1 fonte com gate OK
+    - NUNCA tentar mais de 2 vezes a mesma etapa — na 2ª falha de pesquisador, registrar INDISPONÍVEL e seguir; na 2ª falha do consolidador, PARAR e reportar
+    - NUNCA fazer o merge de fontes no próprio contexto — é o merge_fontes.py
+  </orquestrador>
+  <subagentes>
+    - NUNCA inventar precedentes não encontrados na pesquisa
+    - NUNCA remover acentos do português
+    - NUNCA imprimir o documento na resposta — o documento vai no ARQUIVO
+    - SEMPRE registrar explicitamente quando não encontrar resultados (relatório) e gravar {"fontes": []} (parcial)
+    - NUNCA usar TodoWrite
+  </subagentes>
+</restricoes>
 
-  <!-- ═══════════════════════════════════════════════════════════════ -->
-  <!-- ETAPA 0: PREPARAÇÃO                                            -->
-  <!-- ═══════════════════════════════════════════════════════════════ -->
+<contingencias>
+  <etapa_invalida>Gate acusa [AUSENTE]/[INVALIDA] após o despacho → redespachar a MESMA etapa com o motivo do gate anexado ao prompt; se a falha for de sintaxe MCP, anexar também o lembrete de sintaxe da fonte (máx 2 tentativas).</etapa_invalida>
+  <fonte_indisponivel>Pesquisador falha 2 vezes (MCP fora do ar, gate reprovando) → registrar a fonte como INDISPONÍVEL e SEGUIR, desde que ao menos 1 fonte tenha gate OK. O gate final passa a usar `--etapas <fontes-ok>,consolidado --gate`. Se TODAS as fontes falharem → PARAR e informar o usuário. CASO PARTICULAR — MCP desconectado: STJ e TNU são MCPs que podem estar desconectados na sessão (STJ é conector claude.ai; TNU é servidor local) — se a Task reportar ferramenta MCP indisponível/não conectada, NÃO gastar as 2 tentativas: registrar de imediato "[AVISO] fonte indisponível (MCP desconectado)" e usar o mesmo gate degradado `--etapas <fontes-ok>,consolidado --gate`.</fonte_indisponivel>
+  <consolidacao_falha>Consolidador reprovado no gate 2 vezes → PARAR, entregar os relatórios individuais válidos e reportar o output do gate.</consolidacao_falha>
+  <fontes_rejeitadas>merge_fontes.py sai com exit 1 → os itens rejeitados vêm NOMEADOS no stdout; NÃO é fatal se sobrar ao menos 1 fonte válida em $ID-fontes.json — reportar os rejeitados no resumo final.</fontes_rejeitadas>
+  <limite_tentativas>2 por etapa; pesquisador que estoura vira INDISPONÍVEL (não silencia); consolidador que estoura PARA o pipeline.</limite_tentativas>
+</contingencias>
 
-  <etapa numero="0" nome="Preparação">
-    <config>
-      <modelo>-</modelo>
-      <tools>Bash TodoWrite</tools>
-      <entrada>$ARGUMENTS</entrada>
-      <saida>$TEMA, $WORKSPACE</saida>
-    </config>
+<contratos_dados>
+  | # | Etapa | Agente | Entrada | Saída | Validação |
+  |---|-------|--------|---------|-------|-----------|
+  | 0 | Preparação | — | $ARGUMENTS | $WORKSPACE, $ID, $TEMA + varredura | PENDENTES conhecidas |
+  | 1a | Pesquisa BNP | pesquisa/pesquisador-bnp.md | $TEMA | $ID-pesquisa-bnp.md + fontes-bnp.json | verificar --etapa bnp → 0 |
+  | 1b | Pesquisa CJF | pesquisa/pesquisador-cjf.md | $TEMA | $ID-pesquisa-cjf.md + fontes-cjf.json | verificar --etapa cjf → 0 |
+  | 1c | Pesquisa JULIA | pesquisa/pesquisador-julia.md | $TEMA | $ID-pesquisa-julia.md + fontes-julia.json | verificar --etapa julia → 0 |
+  | 1d | Pesquisa STJ | pesquisa/pesquisador-stj.md | $TEMA | $ID-pesquisa-stj.md + fontes-stj.json | verificar --etapa stj → 0 |
+  | 1e | Pesquisa TNU | pesquisa/pesquisador-tnu.md | $TEMA | $ID-pesquisa-tnu.md + fontes-tnu.json | verificar --etapa tnu → 0 |
+  | 2 | Consolidação | pesquisa/consolidador-pesquisa.md | relatórios com gate OK | $ID-precedentes-consolidado.md | verificar --etapa consolidado → 0 |
+  | 2m | Merge de fontes | — (script) | fontes-*.json | $ID-fontes.json | merge_fontes.py (exit 1 não-fatal se ≥1 fonte válida) |
+  | 3 | Finalização | — | tudo | resumo ao usuário | verificar --gate → 0 (ou --etapas <fontes-ok>,consolidado --gate) |
 
+  As âncoras de cada relatório (início/fim/seções) estão CODIFICADAS no verificar_pesquisa.py —
+  fonte única; este arquivo não as duplica. O schema do parcial de fontes está na seção
+  <saida_fontes> de cada pesquisador — fonte única; o merge_fontes.py valida.
+</contratos_dados>
+
+<fases_pipeline>
+
+  <etapa numero="0" nome="Preparação, gate e retomada">
     <acao_orquestrador>
-      1. **Receber argumento:**
-         ```
-         $ARGUMENTS = [texto fornecido pelo usuário]
-         Se vazio → PARAR: "Informe o tema ou questão jurídica para pesquisa"
-         ```
-
-      2. **Extrair tema:**
-         ```
-         $TEMA = $ARGUMENTS
-         (O tema é o próprio argumento - pode ser palavras-chave, pergunta ou texto)
-         ```
-
-      3. **Criar workspace temporário:**
-         ```bash
-         $TIMESTAMP = $(date +%Y-%m-%d-%H%M%S)
-         $WORKSPACE = data/pesquisa/$TIMESTAMP
-         mkdir -p $WORKSPACE
-         ```
-
-      4. **Criar TodoWrite:**
-         ```javascript
-         TodoWrite([
-           {content: "Preparar workspace e extrair tema", status: "completed", activeForm: "Preparando pesquisa"},
-           {content: "Pesquisar BNP (STF/STJ)", status: "pending", activeForm: "Pesquisando BNP"},
-           {content: "Pesquisar CJF (TRFs)", status: "pending", activeForm: "Pesquisando CJF"},
-           {content: "Pesquisar JULIA (TRF5)", status: "pending", activeForm: "Pesquisando JULIA"},
-           {content: "Consolidar relatórios", status: "pending", activeForm: "Consolidando pesquisas"},
-         ])
-         ```
-
-      5. **Informar usuário:**
-         ```
-         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-         PIPELINE DE PESQUISA DE PRECEDENTES
-         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-         Tema: $TEMA
-         Workspace: $WORKSPACE
-
-         Iniciando pesquisa em 3 fontes...
-         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-         ```
+      1. $ARGUMENTS vazio → PARAR: "Informe o tema ou questão jurídica para pesquisa".
+      2. Resolver o modo:
+         - TRILHO (caminho de pasta de processo existente): se o primeiro token de $ARGUMENTS é um
+           diretório (Bash: test -d) → $WORKSPACE = o caminho; $ID = número CNJ no nome da pasta
+           (o motor infere; sem CNJ, usa o basename); $TEMA = o restante de $ARGUMENTS — se não
+           sobrar tema, PARAR e pedir (a pesquisa precisa de tema).
+         - STANDALONE (tema livre): $TEMA = $ARGUMENTS; slug = tema em minúsculas, sem acentos,
+           tudo que não for [a-z0-9] vira hífen (hífens colapsados, sem hífen nas pontas);
+           $WORKSPACE = data/pesquisa/<slug>; $ID = <slug> (basename). SEM timestamp — mesmo tema
+           ⇒ mesmo workspace ⇒ retomada. Bash: mkdir -p "$WORKSPACE" se não existir.
+           Ex.: "Pensão por morte homoafetivo" → data/pesquisa/pensao-por-morte-homoafetivo.
+      3. Bash: python scripts/verificar_pesquisa.py "$WORKSPACE"
+         → a linha "PENDENTES: ..." é o plano de execução. Tudo "(nenhuma)" → pular direto à
+         Etapa 3 (a pesquisa já estava completa). Reportar ao usuário o que será PULADO por já
+         estar válido.
+      4. TodoWrite com as etapas — as já válidas nascem completed:
+         [{content: "Etapa 0 - Preparação", status: "completed", activeForm: "Preparando pesquisa"},
+          {content: "Etapa 1a - Pesquisa BNP", status: <pendente? "pending" : "completed">, activeForm: "Pesquisando BNP"},
+          {content: "Etapa 1b - Pesquisa CJF", ...}, {content: "Etapa 1c - Pesquisa JULIA", ...},
+          {content: "Etapa 1d - Pesquisa STJ", ...}, {content: "Etapa 1e - Pesquisa TNU", ...},
+          {content: "Etapa 2 - Consolidação e merge de fontes", ...},
+          {content: "Etapa 3 - Finalização", status: "pending", activeForm: "Finalizando"}]
     </acao_orquestrador>
-
-    <validacao>
-      | # | Verificação | Se Falhar |
-      |---|-------------|-----------|
-      | 1 | $ARGUMENTS não vazio | PARAR: solicitar tema |
-      | 2 | Diretório criado | PARAR: erro de sistema |
-    </validacao>
-
-    <transicao>
-      Se OK → ETAPA 1 (paralela)
-    </transicao>
+    <transicao>Há fonte pendente → Etapa 1. Só "consolidado" pendente → Etapa 2. Nada pendente → Etapa 3.</transicao>
   </etapa>
 
-  <!-- ═══════════════════════════════════════════════════════════════ -->
-  <!-- ETAPA 1: PESQUISAS EM PARALELO                                 -->
-  <!-- ═══════════════════════════════════════════════════════════════ -->
-
-  <etapa numero="1" nome="Pesquisas em Paralelo" modo="paralelo">
-    <config>
-      <modelo>sonnet</modelo>
-      <tools>Read Write mcp__*</tools>
-      <entrada>$TEMA</entrada>
-      <saida>pesquisa-bnp.md, pesquisa-cjf.md, pesquisa-julia.md</saida>
-    </config>
-
+  <etapa numero="1" nome="Pesquisas em paralelo (sonnet) — SÓ as pendentes" modo="paralelo">
+    <retomada>Para cada fonte (bnp, cjf, julia, stj, tnu): se NÃO está em PENDENTES → pular (não despachar). Despachar as pendentes no MESMO turno (até 5 Tasks).</retomada>
     <acao_orquestrador>
-      1. **Atualizar TodoWrite:**
-         ```javascript
-         // Marcar as 3 pesquisas como in_progress simultaneamente
-         TodoWrite([
-           {content: "Preparar workspace e extrair tema", status: "completed", activeForm: "Preparando pesquisa"},
-           {content: "Pesquisar BNP (STF/STJ)", status: "in_progress", activeForm: "Pesquisando BNP"},
-           {content: "Pesquisar CJF (TRFs)", status: "in_progress", activeForm: "Pesquisando CJF"},
-           {content: "Pesquisar JULIA (TRF5)", status: "in_progress", activeForm: "Pesquisando JULIA"},
-           {content: "Consolidar relatórios", status: "pending", activeForm: "Consolidando pesquisas"},
-         ])
-         ```
-
-      2. **Disparar 3 Tasks em PARALELO:**
-         Usar Task tool 3 vezes NO MESMO TURNO para execução paralela:
-
-         ```
-         Task 1 (BNP):
-           subagent_type: pesquisador-bnp
-           prompt: [ver prompt_subagente_bnp abaixo]
-
-         Task 2 (CJF):
-           subagent_type: pesquisador-cjf
-           prompt: [ver prompt_subagente_cjf abaixo]
-
-         Task 3 (JULIA):
-           subagent_type: pesquisador-julia
-           prompt: [ver prompt_subagente_julia abaixo]
-         ```
-
-      3. **Aguardar conclusão de TODAS as Tasks**
-
-      4. **Validar outputs:**
-         - Verificar se cada arquivo foi criado
-         - Verificar sinalizadores
-         - Registrar quais pesquisas tiveram resultados
+      Task (sonnet) para CADA fonte pendente, com o prompt-invólucro (exemplo BNP):
+      ═══════════════════════════════════════════════════════════════════
+      VOCÊ É UM SUBAGENTE DE PESQUISA. EXECUTE DIRETAMENTE, SEM PREÂMBULO.
+      <passo>Read: .claude/agents/pesquisa/pesquisador-bnp.md — sua capacidade; siga fielmente.</passo>
+      <passo>Pesquisar via MCP (mcp__bnp-api__buscar_precedentes) o TEMA: $TEMA
+             Sintaxe BNP: +termo -termo "frase" (NÃO use E, OU, NAO); priorize Repercussão Geral
+             e Repetitivos; transcreva teses EXATAS.</passo>
+      <passo>GRAVAR (Write) o relatório COMPLETO em $WORKSPACE/$ID-pesquisa-bnp.md — abrindo com
+             "# Pesquisa BNP", fechando com "Pesquisa BNP concluída.", em português COM acentos.</passo>
+      <passo>GRAVAR (Write) o parcial $WORKSPACE/fontes-bnp.json no schema da seção saida_fontes do
+             seu prompt — trecho_verbatim é cópia EXATA do que o MCP retornou; sem resultados →
+             {"fontes": []}.</passo>
+      <passo>Responder APENAS: "bnp OK | $ID-pesquisa-bnp.md" — NÃO imprimir o documento.</passo>
+      <restricoes>NUNCA inventar precedentes; NUNCA usar TodoWrite.</restricoes>
+      ═══════════════════════════════════════════════════════════════════
+      Variações por fonte (mesmo invólucro, trocando agente, arquivos e lembrete de sintaxe):
+      - CJF → .claude/agents/pesquisa/pesquisador-cjf.md; $ID-pesquisa-cjf.md; fontes-cjf.json;
+        abre "# Pesquisa CJF", fecha "Pesquisa CJF concluída.".
+        Sintaxe CJF: E OU NAO ADJ PROX (MAIÚSCULO); pesquise em todos os TRFs; identifique
+        divergências regionais.
+      - JULIA → .claude/agents/pesquisa/pesquisador-julia.md; $ID-pesquisa-julia.md; fontes-julia.json;
+        abre "# Pesquisa JULIA", fecha "Pesquisa JULIA concluída.".
+        Sintaxe JULIA: e ou nao adj prox $ (minúsculo); analise por turma; verifique IRDRs
+        vinculantes.
+      - STJ → .claude/agents/pesquisa/pesquisador-stj.md; $ID-pesquisa-stj.md; fontes-stj.json;
+        abre "# Pesquisa STJ", fecha "Pesquisa STJ concluída.".
+        Sintaxe STJ: espaço é E implícito, ou nao "frase" termo* (sem parênteses; caixa/acentos
+        ignorados); priorize repetitivos e súmulas; transcreva teses EXATAS.
+      - TNU → .claude/agents/pesquisa/pesquisador-tnu.md; $ID-pesquisa-tnu.md; fontes-tnu.json;
+        abre "# Pesquisa TNU", fecha "Pesquisa TNU concluída.".
+        Sintaxe TNU: e ou nao prox * "frase" (prox SEM número; wildcard em sufixo ou prefixo);
+        use somente_precedentes_relevantes para os representativos; foque uniformização/JEFs.
+      Aguardar TODAS as Tasks despachadas e validar CADA fonte:
+      Bash: python scripts/verificar_pesquisa.py "$WORKSPACE" --etapa bnp   (idem cjf, julia, stj, tnu)
+      (exit 1 → contingência etapa_invalida: redespachar SÓ a fonte reprovada com o motivo do gate
+      anexado; máx 2 tentativas; na 2ª falha → contingência fonte_indisponivel).
     </acao_orquestrador>
-
-    <prompt_subagente_bnp tipo="pesquisador-bnp">
-      Pesquise precedentes vinculantes no BNP para o tema: $TEMA
-
-      INSTRUÇÕES:
-      1. Read: .claude/agents/pesquisa/pesquisador-bnp.md
-      2. Pesquise usando mcp__bnp-api__buscar_precedentes
-      3. Write: $WORKSPACE/pesquisa-bnp.md
-
-      LEMBRE-SE:
-      - Sintaxe BNP: +termo -termo "frase" (NÃO use E, OU, NAO)
-      - Priorize Repercussão Geral e Repetitivos
-      - Transcreva teses EXATAS
-    </prompt_subagente_bnp>
-
-    <prompt_subagente_cjf tipo="pesquisador-cjf">
-      Pesquise jurisprudência no CJF para o tema: $TEMA
-
-      INSTRUÇÕES:
-      1. Read: .claude/agents/pesquisa/pesquisador-cjf.md
-      2. Pesquise usando mcp__cjf-jurisprudencia__buscar_jurisprudencia_cjf
-      3. Write: $WORKSPACE/pesquisa-cjf.md
-
-      LEMBRE-SE:
-      - Sintaxe CJF: E OU NAO ADJ PROX (MAIÚSCULO)
-      - Pesquise em todos os TRFs
-      - Identifique divergências regionais
-    </prompt_subagente_cjf>
-
-    <prompt_subagente_julia tipo="pesquisador-julia">
-      Pesquise jurisprudência no JULIA/TRF5 para o tema: $TEMA
-
-      INSTRUÇÕES:
-      1. Read: .claude/agents/pesquisa/pesquisador-julia.md
-      2. Pesquise usando mcp__julia-trf5__buscar_julia
-      3. Write: $WORKSPACE/pesquisa-julia.md
-
-      LEMBRE-SE:
-      - Sintaxe JULIA: e ou nao adj prox $ (minúsculo)
-      - Analise por turma
-      - Verifique IRDRs vinculantes
-    </prompt_subagente_julia>
-
-    <validacao>
-      | # | Verificação | Se Falhar |
-      |---|-------------|-----------|
-      | 1 | Pelo menos 1 arquivo criado | PARAR: nenhuma pesquisa funcionou |
-      | 2 | Sinalizadores presentes | AVISO: relatório pode estar incompleto |
-    </validacao>
-
-    <transicao>
-      Atualizar TodoWrite com status de cada pesquisa
-      Se pelo menos 1 OK → ETAPA 2
-      Se TODOS falharem → PARAR e informar usuário
-    </transicao>
+    <transicao>Ao menos 1 fonte com gate 0 → Etapa 2. Todas INDISPONÍVEIS → PARAR.</transicao>
   </etapa>
 
-  <!-- ═══════════════════════════════════════════════════════════════ -->
-  <!-- ETAPA 2: CONSOLIDAÇÃO                                          -->
-  <!-- ═══════════════════════════════════════════════════════════════ -->
-
-  <etapa numero="2" nome="Consolidação">
-    <config>
-      <modelo>sonnet</modelo>
-      <tools>Read Write</tools>
-      <agent>.claude/agents/pesquisa/consolidador-pesquisa.md</agent>
-      <entrada>pesquisa-bnp.md, pesquisa-cjf.md, pesquisa-julia.md</entrada>
-      <saida>$WORKSPACE/precedentes-consolidado.md</saida>
-    </config>
-
+  <etapa numero="2" nome="Consolidação (sonnet) + merge de fontes (script)">
+    <retomada>Se "consolidado" NÃO está em PENDENTES E nenhuma pesquisa foi regenerada nesta execução → pular a Task (o consolidado antigo continua valendo). Se alguma pesquisa foi regenerada agora, o consolidador RODA de novo (o consolidado antigo está desatualizado). O merge de fontes roda SEMPRE (idempotente, sem custo de LLM).</retomada>
     <acao_orquestrador>
-      1. **Atualizar TodoWrite:**
-         ```javascript
-         TodoWrite([
-           {content: "Preparar workspace e extrair tema", status: "completed", activeForm: "Preparando pesquisa"},
-           {content: "Pesquisar BNP (STF/STJ)", status: "completed", activeForm: "Pesquisando BNP"},
-           {content: "Pesquisar CJF (TRFs)", status: "completed", activeForm: "Pesquisando CJF"},
-           {content: "Pesquisar JULIA (TRF5)", status: "completed", activeForm: "Pesquisando JULIA"},
-           {content: "Consolidar relatórios", status: "in_progress", activeForm: "Consolidando pesquisas"},
-         ])
-         ```
-
-      2. **Verificar quais pesquisas existem:**
-         ```
-         Glob: $WORKSPACE/pesquisa-*.md
-         → Listar arquivos disponíveis
-         ```
-
-      3. **Disparar consolidador:**
-         ```
-         Task:
-           subagent_type: consolidador-pesquisa
-           prompt: [ver prompt_subagente_consolidador abaixo]
-         ```
-
-      4. **Validar output:**
-         - Verificar se precedentes-consolidado.md foi criado
-         - Verificar sinalizadores
+      1. Task (sonnet) com o prompt-invólucro:
+      ═══════════════════════════════════════════════════════════════════
+      VOCÊ É UM SUBAGENTE DE CONSOLIDAÇÃO. EXECUTE DIRETAMENTE, SEM PREÂMBULO.
+      <passo>Read: .claude/agents/pesquisa/consolidador-pesquisa.md — sua capacidade; siga fielmente.</passo>
+      <passo>Read: [listar aqui APENAS os relatórios com gate OK, ex.:
+             $WORKSPACE/$ID-pesquisa-bnp.md, $WORKSPACE/$ID-pesquisa-cjf.md,
+             $WORKSPACE/$ID-pesquisa-julia.md, $WORKSPACE/$ID-pesquisa-stj.md,
+             $WORKSPACE/$ID-pesquisa-tnu.md — fonte INDISPONÍVEL fica de fora e deve ser
+             registrada como ausente no consolidado].</passo>
+      <passo>Analisar interseções e divergências (TEMA: $TEMA) e GRAVAR (Write) o relatório
+             COMPLETO em $WORKSPACE/$ID-precedentes-consolidado.md — abrindo com
+             "# Relatório Consolidado de Precedentes", com a classificação por hierarquia
+             vinculante (RG > RR > IRDR > Súmula), fechando com "Consolidação realizada com base
+             nas pesquisas disponíveis.", em português COM acentos.</passo>
+      <passo>Responder APENAS: "consolidado OK | $ID-precedentes-consolidado.md" — NÃO imprimir o documento.</passo>
+      <restricoes>NUNCA inventar precedentes ausentes dos relatórios; NUNCA usar TodoWrite.</restricoes>
+      ═══════════════════════════════════════════════════════════════════
+      2. Validar: Bash: python scripts/verificar_pesquisa.py "$WORKSPACE" --etapa consolidado
+         (exit 1 → contingência etapa_invalida; 2ª falha → contingência consolidacao_falha).
+      3. Merge de fontes: Bash: python scripts/merge_fontes.py "$WORKSPACE" --id "$ID"
+         → produz $ID-fontes.json sem passar conteúdo pelo contexto. Exit 1 = itens rejeitados
+         NOMEADOS no stdout; NÃO é fatal se sobrar ≥1 fonte válida — anotar os rejeitados para o
+         resumo (contingência fontes_rejeitadas).
     </acao_orquestrador>
-
-    <prompt_subagente_consolidador tipo="consolidador-pesquisa">
-      Consolide os relatórios de pesquisa em relatório unificado.
-
-      INSTRUÇÕES:
-      1. Read: .claude/agents/pesquisa/consolidador-pesquisa.md
-      2. Ler relatórios disponíveis:
-         - Read: $WORKSPACE/pesquisa-bnp.md (se existir)
-         - Read: $WORKSPACE/pesquisa-cjf.md (se existir)
-         - Read: $WORKSPACE/pesquisa-julia.md (se existir)
-      3. Analisar interseções e divergências
-      4. Write: $WORKSPACE/precedentes-consolidado.md
-
-      TEMA PESQUISADO: $TEMA
-
-      LEMBRE-SE:
-      - Classifique por hierarquia vinculante (RG > RR > IRDR > Súmula)
-      - Destaque convergências entre fontes
-      - Alerte sobre divergências
-    </prompt_subagente_consolidador>
-
-    <validacao>
-      | # | Verificação | Se Falhar |
-      |---|-------------|-----------|
-      | 1 | Arquivo consolidado existe | REGENERAR |
-      | 2 | Sinalizador início | REGENERAR com sufixo |
-      | 3 | Sinalizador fim | REGENERAR com sufixo |
-    </validacao>
-
-    <transicao>
-      Se OK → ETAPA 3 (Finalização)
-      Se FALHAR 2x → Entregar pesquisas individuais
-    </transicao>
+    <transicao>Gate consolidado 0 → Etapa 3.</transicao>
   </etapa>
-
-  <!-- ═══════════════════════════════════════════════════════════════ -->
-  <!-- ETAPA 3: FINALIZAÇÃO                                           -->
-  <!-- ═══════════════════════════════════════════════════════════════ -->
 
   <etapa numero="3" nome="Finalização">
-    <config>
-      <modelo>-</modelo>
-      <tools>Read TodoWrite</tools>
-      <entrada>precedentes-consolidado.md</entrada>
-      <saida>Resumo ao usuário</saida>
-    </config>
-
     <acao_orquestrador>
-      1. **Atualizar TodoWrite:**
-         ```javascript
-         TodoWrite([
-           {content: "Preparar workspace e extrair tema", status: "completed", activeForm: "Preparando pesquisa"},
-           {content: "Pesquisar BNP (STF/STJ)", status: "completed", activeForm: "Pesquisando BNP"},
-           {content: "Pesquisar CJF (TRFs)", status: "completed", activeForm: "Pesquisando CJF"},
-           {content: "Pesquisar JULIA (TRF5)", status: "completed", activeForm: "Pesquisando JULIA"},
-           {content: "Consolidar relatórios", status: "completed", activeForm: "Consolidando pesquisas"},
-         ])
-         ```
-
-      2. **Ler resumo do relatório consolidado:**
-         ```
-         Read: $WORKSPACE/precedentes-consolidado.md
-         → Extrair seção "Resumo Executivo"
-         ```
-
-      3. **Exibir resultado final:**
-         ```
-         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-         PESQUISA CONCLUÍDA
-         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-         Tema: $TEMA
-         Workspace: $WORKSPACE
-
-         ARQUIVOS GERADOS:
-         ✅ $WORKSPACE/pesquisa-bnp.md
-         ✅ $WORKSPACE/pesquisa-cjf.md
-         ✅ $WORKSPACE/pesquisa-julia.md
-         ✅ $WORKSPACE/precedentes-consolidado.md ← PRINCIPAL
-
-         [Resumo Executivo do relatório consolidado]
-
-         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-         ```
+      1. Gate final:
+         - Sem fonte INDISPONÍVEL: Bash: python scripts/verificar_pesquisa.py "$WORKSPACE" --gate
+         - Com fonte(s) INDISPONÍVEL(is) após 2 tentativas:
+           Bash: python scripts/verificar_pesquisa.py "$WORKSPACE" --etapas <fontes-ok>,consolidado --gate
+           (ex.: --etapas bnp,julia,stj,consolidado --gate — TNU indisponível na sessão)
+         (exit 1 → algo regrediu; reportar o output e PARAR).
+      2. Resumo de 1 tela ao usuário, SEM transcrever conteúdo dos relatórios:
+         - Tema e $WORKSPACE
+         - Arquivos: $ID-pesquisa-<fonte>.md por fonte (marcando REAPROVEITADO vs gerado agora e
+           as fontes INDISPONÍVEIS), $ID-precedentes-consolidado.md (o PRINCIPAL) e $ID-fontes.json
+         - Fontes verbatim: nº de itens válidos e itens rejeitados no merge (do stdout do
+           merge_fontes.py — ex.: "[FIM] 7 válidas, 1 rejeitada, 0 duplicatas")
     </acao_orquestrador>
-
-    <validacao>
-      | # | Verificação | Se Falhar |
-      |---|-------------|-----------|
-      | 1 | Relatório consolidado legível | AVISO: entregar arquivos individuais |
-    </validacao>
   </etapa>
 
-</etapas_pipeline>
+</fases_pipeline>
 
 <resumo_arquitetura>
-PIPELINE /pipeline-pesquisa - Arquitetura
+PIPELINE PESQUISA v3.0 — workspace determinístico + gate por script + retomada + fontes verbatim
 │
-├── ETAPA 0: Preparação
-│   ├── Recebe: $ARGUMENTS (tema/questão jurídica)
-│   ├── Cria: $WORKSPACE = data/pesquisa/$TIMESTAMP
-│   └── Extrai: $TEMA
-│
-├── ETAPA 1: Pesquisas em PARALELO
-│   │
-│   ├─── Task: pesquisador-bnp ────────┐
-│   │    └── mcp__bnp-api__*           │
-│   │                                  │
-│   ├─── Task: pesquisador-cjf ────────┼─── Simultâneas
-│   │    └── mcp__cjf-jurisprudencia   │
-│   │                                  │
-│   └─── Task: pesquisador-julia ──────┘
-│        └── mcp__julia-trf5__*
-│
-├── ETAPA 2: Consolidação (sequencial)
-│   ├── Lê: 3 relatórios de pesquisa
-│   ├── Analisa: Interseções e divergências
-│   └── Produz: precedentes-consolidado.md
-│
-└── ETAPA 3: Finalização
-    └── Exibe: Resumo executivo ao usuário
+├── 0 Preparação: $WORKSPACE/$ID/$TEMA + verificar_pesquisa.py → PENDENTES (o plano)
+│     standalone: data/pesquisa/<slug-do-tema> (sem timestamp)  |  trilho: pasta do processo
+├── 1 Pesquisas em PARALELO (só as pendentes; até 5 Tasks sonnet no mesmo turno)
+│   ├── bnp   [Task sonnet] → $ID-pesquisa-bnp.md   + fontes-bnp.json   ─┐ cada uma: pula se
+│   ├── cjf   [Task sonnet] → $ID-pesquisa-cjf.md   + fontes-cjf.json    │ válida; grava arquivos;
+│   ├── julia [Task sonnet] → $ID-pesquisa-julia.md + fontes-julia.json  │ 1 linha; gate --etapa
+│   ├── stj   [Task sonnet] → $ID-pesquisa-stj.md   + fontes-stj.json    │ (MCP desconectado →
+│   └── tnu   [Task sonnet] → $ID-pesquisa-tnu.md   + fontes-tnu.json   ─┘  INDISPONÍVEL direto)
+├── 2 Consolidação [Task sonnet] → $ID-precedentes-consolidado.md (gate --etapa consolidado)
+│     + Merge      [SCRIPT]      → $ID-fontes.json (merge_fontes.py; zero contexto)
+└── 3 Finalização: verificar_pesquisa.py --gate (ou --etapas <fontes-ok>,consolidado) + resumo
 
-SAÍDAS:
-$WORKSPACE/
-├── pesquisa-bnp.md           (precedentes STF/STJ)
-├── pesquisa-cjf.md           (jurisprudência TRFs)
-├── pesquisa-julia.md         (jurisprudência TRF5)
-└── precedentes-consolidado.md (análise cruzada) ← PRINCIPAL
+Princípios: o documento vive no ARQUIVO (nunca na conversa); a validação é do SCRIPT (âncoras com
+acentos normalizados — fonte única em verificar_pesquisa.py); PENDENTES é o plano (1ª rodada e
+retomada são a mesma operação); fonte que falha 2x vira INDISPONÍVEL e não trava o pipeline;
+nenhuma citação sem lastro — o trecho_verbatim é cópia exata do MCP e o merge é determinístico.
 </resumo_arquitetura>
 
 <checklist_orquestrador>
-Antes de iniciar, verificar:
-
-**Etapa 0:**
-- [ ] $ARGUMENTS não está vazio?
-- [ ] Diretório data/pesquisa/ existe ou pode ser criado?
-
-**Etapa 1:**
-- [ ] MCPs servers estão disponíveis?
-- [ ] Disparar 3 Tasks em paralelo (mesmo turno)?
-- [ ] Aguardar todas concluírem antes de prosseguir?
-
-**Etapa 2:**
-- [ ] Pelo menos 1 pesquisa retornou resultados?
-- [ ] Consolidador tem acesso aos 3 arquivos?
-
-**Etapa 3:**
-- [ ] Relatório consolidado foi criado?
-- [ ] Sinalizadores estão presentes?
+- [ ] $WORKSPACE/$ID/$TEMA resolvidos e a varredura da Etapa 0 rodou?
+- [ ] Todas as etapas VÁLIDAS foram puladas (nada redespachado)?
+- [ ] Pesquisas pendentes despachadas em PARALELO no mesmo turno?
+- [ ] Nenhum relatório lido pelo orquestrador (validação só por script)?
+- [ ] Subagentes responderam só a linha de status?
+- [ ] Consolidador recebeu SÓ os relatórios com gate OK (e re-rodou se alguma pesquisa mudou)?
+- [ ] Fonte com MCP desconectado (STJ/TNU) virou INDISPONÍVEL direto ("[AVISO] fonte indisponível", sem redespacho) e entrou no gate degradado?
+- [ ] merge_fontes.py rodou e os rejeitados (se houver) foram anotados para o resumo?
+- [ ] Gate final (--gate ou --etapas <fontes-ok>,consolidado --gate) retornou 0 antes do resumo?
+- [ ] TodoWrite refletiu o reaproveitamento (etapas puladas nascem completed)?
 </checklist_orquestrador>

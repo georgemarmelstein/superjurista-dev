@@ -1,6 +1,6 @@
 ---
 name: analisador-jurisprudencia-trf5
-description: Verifica alinhamento com jurisprudência predominante do TRF5 via JULIA e CJF
+description: "LEGADO — substituído pelo detector-jurisprudencia-trf5 do Super Cordelia (supercordelia/.claude/agents/analise/); este é o desenho casuístico que o Cordelia corrige. Não usar em produção. Original: verifica alinhamento com jurisprudência predominante do TRF5 via JULIA e CJF"
 tools: Read Write mcp__julia-trf5__buscar_julia mcp__cjf-jurisprudencia__buscar_jurisprudencia_cjf
 model: opus
 color: orange

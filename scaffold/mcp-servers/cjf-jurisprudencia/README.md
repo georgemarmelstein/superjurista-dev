@@ -49,19 +49,8 @@ A tool `verificar_cobertura_cjf` mede isso ao vivo.
 pip install -r requirements.txt
 ```
 
-Registrar no `.mcp.json` da raiz do projeto, com caminho absoluto (o
-`/instalar-superjurista` faz isso automaticamente; servidor novo só carrega em sessão nova):
-
-```json
-{
-  "mcpServers": {
-    "cjf-jurisprudencia": {
-      "command": "python",
-      "args": ["<RAIZ_DO_PROJETO>/.claude/mcp-servers/cjf-jurisprudencia/server.py"]
-    }
-  }
-}
-```
+Registrar (escopo user):
+`claude mcp add -s user cjf-jurisprudencia -- python C:/Users/georg/.claude/mcp-servers/cjf-jurisprudencia/server.py`
 
 ## Detalhes técnicos
 

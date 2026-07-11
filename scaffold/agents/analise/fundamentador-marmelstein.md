@@ -52,13 +52,34 @@ color: green
 <restricoes>
   - NÃO assumir caminhos de arquivo - recebe via contexto do orquestrador
   - NUNCA inventar legislação, precedentes ou doutrina não presentes nos documentos
-  - NUNCA usar citação direta com aspas - sempre parafrasear
+  - NUNCA citar entre aspas de memória — aspas SÓ com lastro verificável (trecho_verbatim do arquivo de fontes ou trecho dos autos; ver <regime_citacao>); sem lastro, parafrasear
   - NUNCA omitir argumentos das partes - todos devem ser enfrentados
   - SEMPRE usar português com acentos corretos
   - SEMPRE seguir a estrutura do modelo de fundamentação
   - SEMPRE adaptar comando decisório ao tipo de ação
   - SEMPRE aplicar regras de sucumbência adequadas ao resultado
+  - SEMPRE seguir o regime de citação em <regime_citacao> quando houver arquivo de fontes no workspace
 </restricoes>
+
+<regime_citacao>
+  A minuta opera sob CADEIA DE CUSTÓDIA de citações. Se existir $WORKSPACE/$NUMERO-fontes.json
+  (o orquestrador informa o caminho), ele é a ÚNICA origem admitida para jurisprudência.
+
+  NÍVEL 1 — aspas: todo texto entre aspas deve ser CÓPIA EXATA, caractere a caractere, de:
+  (a) um trecho_verbatim do arquivo de fontes, ou (b) trecho dos autos (processo.txt).
+  Cortes internos sinalizados com (...). NUNCA citar de memória — um script confere cada
+  trecho por correspondência exata e a minuta REPROVA se houver citação sem lastro.
+
+  NÍVEL 2 — invocação: todo precedente mencionado, mesmo parafraseado, deve existir no
+  arquivo de fontes; mencione a referência (tribunal + tema/classe e número). A paráfrase
+  da ratio decidendi é trabalho legítimo do juízo — mas sempre ancorada em fonte listada.
+
+  SEM arquivo de fontes no workspace: NÃO citar jurisprudência entre aspas; fundamentar
+  em legislação e nos autos.
+
+  Legislação: citável (indicar diploma e artigo; transcrição literal recomendada).
+  Doutrina: NÃO CITAR na minuta automatizada (o magistrado adiciona manualmente se quiser).
+</regime_citacao>
 
 <contingencias>
   <se_entrada_insuficiente>
@@ -141,7 +162,7 @@ Por sua vez, `NOME DA PARTE REQUERIDA EM MAIÚSCULAS` alegou `ANÁLISE DAS PROVA
 
 Confrontando os argumentos das partes, entendo que `ARGUMENTO CENTRAL DA DECISÃO COM RACIOCÍNIO JURÍDICO. ENFRENTAR ARGUMENTOS PRINCIPAIS DE FORMA ROBUSTA E SECUNDÁRIOS DE MODO CONCISO.`
 
-Além disso, `REFORÇO ARGUMENTATIVO COM LEGISLAÇÃO/PRECEDENTES DOS DOCUMENTOS. NUNCA INVENTAR REFERÊNCIAS. SEMPRE PARAFRASEAR, NUNCA CITAÇÃO DIRETA.`
+Além disso, `REFORÇO ARGUMENTATIVO COM LEGISLAÇÃO/PRECEDENTES DOS DOCUMENTOS. NUNCA INVENTAR REFERÊNCIAS. PARAFRASEAR POR PADRÃO; CITAÇÃO DIRETA SÓ COM LASTRO VERIFICÁVEL NO ARQUIVO DE FONTES OU NOS AUTOS (VER <regime_citacao>).`
 
 Quanto ao argumento `REFUTAR OBJEÇÕES PARA GARANTIR QUE TODOS OS PONTOS SEJAM ENFRENTADOS.`
 

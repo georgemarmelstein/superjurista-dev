@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.0 (2026-07-11)
+
+### Adicionado
+
+- **`sync-scaffold.ps1`** — o scaffold agora é GERADO a partir do superjurista vivo,
+  nunca editado à mão. O script codifica a política de exclusões (artefatos pessoais
+  do magistrado, meta-ferramentas que o plugin já fornece, higiene de segredos) e
+  faz varredura final anti-credencial. Rodar antes de cada bump de versão.
+- Scaffold atualizado com o estado de 2026-07-11 do projeto vivo:
+  - novos agentes `pesquisador-stj` e `pesquisador-tnu` (pesquisa/);
+  - nova skill `jurisprudencia-eleitoral` (TSE + 27 TREs via Chrome/SJUR);
+  - novos gates de validação (`verificar_citacoes`, `verificar_pesquisa`,
+    `verificar_probatica`, `merge_fontes`);
+  - analisadores `lista-trf/03-04-05` marcados como LEGADO (substituídos pelos
+    detectores principiológicos do Super Cordelia).
+
 ## 1.2.0 (2026-07-10)
 
 ### Adicionado

@@ -10,18 +10,6 @@ allowed-tools: Bash, Read, Write
 
 REGRA ABSOLUTA: Execute os scripts existentes. NAO crie codigo novo.
 
-## Captura de Sessao
-
-**Metodo preferido: Bookmarklet** (~5 segundos)
-- Instalar: copiar conteudo de `bookmarklet.min.txt` como URL de um favorito no Chrome
-- Usar: clicar no favorito quando logado no PJE
-- Copiar arquivo baixado: `cp ~/Downloads/pje_session_trf5-1g_*.json pje_session.json`
-
-**Fallback: HAR** (quando bookmarklet nao funciona)
-- Usar script `extrair_cookies_har.py` (ver abaixo)
-
----
-
 ## Scripts Disponiveis
 
 | Script | Comando |

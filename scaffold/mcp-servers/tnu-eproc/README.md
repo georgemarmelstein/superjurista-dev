@@ -44,20 +44,7 @@ STF-STJ → **CJF unificada**.
 
 ```bash
 pip install -r requirements.txt
-```
-
-Registrar no `.mcp.json` da raiz do projeto, com caminho absoluto (o
-`/instalar-superjurista` faz isso automaticamente; servidor novo só carrega em sessão nova):
-
-```json
-{
-  "mcpServers": {
-    "tnu-eproc": {
-      "command": "python",
-      "args": ["<RAIZ_DO_PROJETO>/.claude/mcp-servers/tnu-eproc/server.py"]
-    }
-  }
-}
+claude mcp add -s user tnu-eproc -- python C:/Users/georg/.claude/mcp-servers/tnu-eproc/server.py
 ```
 
 ## Detalhes técnicos (engenharia reversa 10/07/2026)

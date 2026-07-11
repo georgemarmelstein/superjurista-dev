@@ -11,18 +11,17 @@ cd .claude/mcp-servers/tjsc-eproc
 pip install -r requirements.txt
 ```
 
-## Registro no .mcp.json (raiz do projeto)
+## Configuracao no settings.json
 
-Adicionar ao `.mcp.json` na raiz do projeto, com caminho ABSOLUTO — o `/instalar-superjurista`
-faz este registro automaticamente. NAO usar settings.json (padrao antigo, falha
-silenciosamente). Servidor novo so carrega em sessao nova.
+Adicionar ao arquivo `.claude/settings.json` do projeto ou `~/.claude/settings.json` global:
 
 ```json
 {
   "mcpServers": {
     "tjsc-eproc": {
       "command": "python",
-      "args": ["<RAIZ_DO_PROJETO>/.claude/mcp-servers/tjsc-eproc/server.py"]
+      "args": [".claude/mcp-servers/tjsc-eproc/server.py"],
+      "cwd": "."
     }
   }
 }

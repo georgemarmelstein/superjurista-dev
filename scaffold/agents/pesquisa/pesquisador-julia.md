@@ -45,9 +45,10 @@ color: yellow
     </requisitos>
   </entrada>
   <saida>
-    <nome>pesquisa-julia.md</nome>
+    <nome>$ID-pesquisa-julia.md (caminho e prefixo injetados pelo orquestrador)</nome>
     <tipo>Relatório de jurisprudência do TRF5 com análise por turma</tipo>
     <formato>MD</formato>
+    <adicional>fontes-julia.json — parcial de fontes verbatim no workspace (ver saida_fontes)</adicional>
   </saida>
 </contrato>
 
@@ -126,17 +127,23 @@ color: yellow
   </passo>
 
   <passo numero="6" nome="Produzir relatório">
-    Gerar documento pesquisa-julia.md no formato especificado.
+    Gerar o relatório de pesquisa JULIA no formato especificado.
     → Iniciar com sinalizador de início.
     → Finalizar com sinalizador de fim.
     → O destino é definido pelo orquestrador.
+  </passo>
+
+  <passo numero="7" nome="Gravar fontes verbatim">
+    Gravar (Write) o parcial fontes-julia.json no workspace, conforme a seção saida_fontes:
+    os julgados que o relatório DESTACA, com trecho_verbatim copiado EXATAMENTE do MCP.
+    → Sem resultados → gravar {"fontes": []}.
   </passo>
 </instrucoes>
 
 <formato_saida>
 
 ```markdown
-# Relatório de Pesquisa JULIA (TRF5)
+# Pesquisa JULIA (TRF5)
 
 **Data**: `DATA`
 **Fonte**: Sistema JULIA - Tribunal Regional Federal da 5ª Região
@@ -284,9 +291,39 @@ Pesquisa JULIA concluída.
 <sinalizadores>
   | Posição | Texto Obrigatório |
   |---------|-------------------|
-  | Início  | "# Relatório de Pesquisa JULIA (TRF5)" |
+  | Início  | "# Pesquisa JULIA (TRF5)" |
   | Fim     | "Pesquisa JULIA concluída." |
 </sinalizadores>
+
+<saida_fontes>
+  Além do relatório, GRAVAR (Write) um parcial de fontes verbatim no workspace:
+  **fontes-julia.json** (o diretório é o mesmo do relatório, injetado pelo orquestrador).
+
+  Schema (cada julgado que o relatório DESTACA vira um item — não é preciso registrar tudo):
+
+  ```json
+  {"fontes": [{
+    "id": "JULIA-001",
+    "origem_mcp": "julia-trf5",
+    "tribunal": "TRF5",
+    "tipo": "acordao",
+    "referencia": "0800123-45.2023.4.05.8100",
+    "orgao_julgador": "1ª Turma",
+    "data_julgamento": null,
+    "campo": "ementa",
+    "trecho_verbatim": "...",
+    "url": null
+  }]}
+  ```
+
+  Regra de ouro: o trecho_verbatim é cópia EXATA do resultado retornado pelo MCP — copie,
+  não redija; na dúvida entre resumir e transcrever, transcreva.
+
+  - Registrar a tese/ementa dos julgados que o relatório destaca (não tudo que a busca retornou).
+  - origem_mcp é SEMPRE "julia-trf5"; campo é um de: tese | ementa | acordao | sumula.
+  - orgao_julgador, data_julgamento e url podem ser null quando o MCP não retornar.
+  - Se a pesquisa não retornar nada, gravar {"fontes": []}.
+</saida_fontes>
 
 <conhecimento_dominio>
 
@@ -407,7 +444,7 @@ Buscas a executar:
 ### Saída Esperada
 
 ```
-# Relatório de Pesquisa JULIA (TRF5)
+# Pesquisa JULIA (TRF5)
 
 **Data**: 18/01/2026
 **Fonte**: Sistema JULIA - Tribunal Regional Federal da 5ª Região

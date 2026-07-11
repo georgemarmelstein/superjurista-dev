@@ -18,59 +18,12 @@ Automatizar o login no PJE e captura de cookies de sessao para uso pelos scripts
 
 ---
 
-## Metodos de Captura (em ordem de preferencia)
+## Descoberta Importante (2026-02)
 
-| Path | Metodo | Quando usar | Tempo |
-|------|--------|-------------|-------|
-| 1 | **Bookmarklet** | Usuario ja logado, bookmarklet instalado | ~5s |
-| 2 | **Chrome MCP + JS** | Precisa automatizar login, Chrome MCP disponivel | ~30s |
-| 3 | **HAR manual** | Bookmarklet falha (HttpOnly, CSP) ou Chrome MCP indisponivel | ~5-10min |
-
-### Path 1: Bookmarklet (preferido)
-
-Se o usuario ja tiver o bookmarklet instalado no navegador:
-
-1. Verificar que esta logado no PJE
-2. Pedir que clique no bookmarklet
-3. Copiar arquivo baixado para o projeto:
-
-```bash
-ARQUIVO=$(ls -t ~/Downloads/pje_session_*.json 2>/dev/null | head -1)
-if [ -n "$ARQUIVO" ]; then
-    cp "$ARQUIVO" pje_session.json
-    echo "[OK] $(basename $ARQUIVO) -> pje_session.json"
-else
-    echo "[ERRO] Nenhum pje_session_*.json encontrado em Downloads"
-fi
-```
-
-4. Validar sessao:
-
-```bash
-python -c "
-import json
-d = json.load(open('pje_session.json'))
-cookies = d.get('cookies', {})
-headers = d.get('headers_api', {})
-has_session = 'JSESSIONID' in cookies or 'JSESSIONID' in d.get('cookie_download', '')
-has_xpje = 'X-pje-cookies' in headers and len(headers['X-pje-cookies']) > 50
-if has_session and has_xpje:
-    print('[OK] Sessao completa (listagem + download)')
-elif has_session:
-    print('[AVISO] Sessao parcial')
-else:
-    print('[ERRO] Sessao invalida')
-"
-```
-
-Se o bookmarklet nao estiver instalado, orientar o usuario a instalar:
-1. Abrir `.claude/skills/pje-download/bookmarklet.min.txt`
-2. Copiar TODO o conteudo (comeca com `javascript:`)
-3. No Chrome: Favoritos > Gerenciar favoritos > Adicionar favorito
-4. Nome: "PJE Session"
-5. URL: colar o conteudo copiado
-
-Se o bookmarklet falhar, usar Path 2 ou Path 3.
+O fluxo foi SIMPLIFICADO:
+1. **Chrome autofill** preenche CPF/senha automaticamente (credenciais salvas no navegador)
+2. **JavaScript com `document.cookie`** captura TODOS os cookies necessarios, incluindo `X-pje-cookies`
+3. **NAO precisa mais de HAR** - o metodo JavaScript e suficiente para listagem E download
 
 ---
 
@@ -99,7 +52,7 @@ o seed e solucao de problemas: `references/2fa-totp.md`.
 
 ---
 
-## Path 2: Fluxo Chrome MCP
+## Fluxo Principal (Chrome MCP)
 
 ### Etapa 1: Verificar Chrome MCP
 
@@ -265,7 +218,7 @@ else:
 
 ---
 
-## Path 3: Metodo Fallback - HAR Manual
+## Metodo Fallback: HAR Manual
 
 Se Chrome MCP nao estiver disponivel:
 

@@ -44,9 +44,10 @@ color: yellow
     </requisitos>
   </entrada>
   <saida>
-    <nome>pesquisa-cjf.md</nome>
+    <nome>$ID-pesquisa-cjf.md (caminho e prefixo injetados pelo orquestrador)</nome>
     <tipo>Relatório de jurisprudência com panorama nacional</tipo>
     <formato>MD</formato>
+    <adicional>fontes-cjf.json — parcial de fontes verbatim no workspace (ver saida_fontes)</adicional>
   </saida>
 </contrato>
 
@@ -123,17 +124,23 @@ color: yellow
   </passo>
 
   <passo numero="6" nome="Produzir relatório">
-    Gerar documento pesquisa-cjf.md no formato especificado.
+    Gerar o relatório de pesquisa CJF no formato especificado.
     → Iniciar com sinalizador de início.
     → Finalizar com sinalizador de fim.
     → O destino é definido pelo orquestrador.
+  </passo>
+
+  <passo numero="7" nome="Gravar fontes verbatim">
+    Gravar (Write) o parcial fontes-cjf.json no workspace, conforme a seção saida_fontes:
+    os julgados que o relatório DESTACA, com trecho_verbatim copiado EXATAMENTE do MCP.
+    → Sem resultados → gravar {"fontes": []}.
   </passo>
 </instrucoes>
 
 <formato_saida>
 
 ```markdown
-# Relatório de Pesquisa CJF
+# Pesquisa CJF
 
 **Data**: `DATA`
 **Fonte**: Portal de Jurisprudência Unificada (CJF)
@@ -256,9 +263,39 @@ Pesquisa CJF concluída.
 <sinalizadores>
   | Posição | Texto Obrigatório |
   |---------|-------------------|
-  | Início  | "# Relatório de Pesquisa CJF" |
+  | Início  | "# Pesquisa CJF" |
   | Fim     | "Pesquisa CJF concluída." |
 </sinalizadores>
+
+<saida_fontes>
+  Além do relatório, GRAVAR (Write) um parcial de fontes verbatim no workspace:
+  **fontes-cjf.json** (o diretório é o mesmo do relatório, injetado pelo orquestrador).
+
+  Schema (cada julgado que o relatório DESTACA vira um item — não é preciso registrar tudo):
+
+  ```json
+  {"fontes": [{
+    "id": "CJF-001",
+    "origem_mcp": "cjf-jurisprudencia",
+    "tribunal": "TRF4",
+    "tipo": "acordao",
+    "referencia": "REsp 1.234.567",
+    "orgao_julgador": "Primeira Turma",
+    "data_julgamento": null,
+    "campo": "ementa",
+    "trecho_verbatim": "...",
+    "url": null
+  }]}
+  ```
+
+  Regra de ouro: o trecho_verbatim é cópia EXATA do resultado retornado pelo MCP — copie,
+  não redija; na dúvida entre resumir e transcrever, transcreva.
+
+  - Registrar a tese/ementa dos julgados que o relatório destaca (não tudo que a busca retornou).
+  - origem_mcp é SEMPRE "cjf-jurisprudencia"; campo é um de: tese | ementa | acordao | sumula.
+  - orgao_julgador, data_julgamento e url podem ser null quando o MCP não retornar.
+  - Se a pesquisa não retornar nada, gravar {"fontes": []}.
+</saida_fontes>
 
 <conhecimento_dominio>
 
@@ -386,7 +423,7 @@ Buscas a executar:
 ### Saída Esperada
 
 ```
-# Relatório de Pesquisa CJF
+# Pesquisa CJF
 
 **Data**: 18/01/2026
 **Fonte**: Portal de Jurisprudência Unificada (CJF)

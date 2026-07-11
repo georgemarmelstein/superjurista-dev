@@ -9,18 +9,17 @@ cd .claude/mcp-servers/tcu-jurisprudencia
 pip install -r requirements.txt
 ```
 
-## Registro no .mcp.json (raiz do projeto)
+## Configuracao no Claude Code
 
-Adicionar ao `.mcp.json` na raiz do projeto, com caminho ABSOLUTO — o `/instalar-superjurista`
-faz este registro automaticamente. NAO usar settings.json (padrao antigo, falha
-silenciosamente). Servidor novo so carrega em sessao nova.
+Adicione ao arquivo `~/.claude/settings.json` ou ao settings do projeto:
 
 ```json
 {
   "mcpServers": {
     "tcu-jurisprudencia": {
+      "type": "stdio",
       "command": "python",
-      "args": ["<RAIZ_DO_PROJETO>/.claude/mcp-servers/tcu-jurisprudencia/server.py"]
+      "args": [".claude/mcp-servers/tcu-jurisprudencia/server.py"]
     }
   }
 }

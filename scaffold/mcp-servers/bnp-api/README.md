@@ -18,15 +18,15 @@ pip install -r requirements.txt
 
 ## Registro (.mcp.json do projeto, com caminho absoluto)
 
-Adicione ao `.mcp.json` na raiz do projeto (o `/instalar-superjurista` faz isso
-automaticamente; servidor novo so carrega em sessao nova):
+Adicione ao `.mcp.json` do projeto (ou registre no escopo user via `claude mcp add -s user`):
 
 ```json
 {
   "mcpServers": {
     "bnp-api": {
       "command": "python",
-      "args": ["<RAIZ_DO_PROJETO>/.claude/mcp-servers/bnp-api/server.py"]
+      "args": ["C:/Users/georg/.claude/mcp-servers/bnp-api/server.py"],
+      "env": {}
     }
   }
 }
