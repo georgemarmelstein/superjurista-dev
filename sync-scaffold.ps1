@@ -80,6 +80,38 @@ Get-ChildItem $ProjetoScripts -File -Filter '*.py' |
 foreach ($m in $McpsGlobais)  { Copiar-Filtrado (Join-Path $Global $m) (Join-Path $Scaffold "mcp-servers\$m") }
 foreach ($m in $McpsProjeto)  { Copiar-Filtrado (Join-Path $Projeto "mcp-servers\$m") (Join-Path $Scaffold "mcp-servers\$m") }
 
+# 6.5 Motor /criar-sistema — fonte da verdade: global ~/.claude
+#     Os 5 agentes e os references/assets da skill são IDÊNTICOS por contrato
+#     (cópia só quando o conteúdo real divergir, ignorando EOL). O SKILL.md do
+#     plugin é ADAPTADO (${CLAUDE_PLUGIN_ROOT} + subagent_type namespaced) —
+#     NUNCA copiar cego; o script só avisa se o global mudou depois dele.
+$GlobalClaude = 'C:\Users\georg\.claude'
+function Sync-SeDivergir($origem, $destino) {
+    $a = (Get-Content -Raw $origem) -replace "`r`n", "`n"
+    $b = if (Test-Path $destino) { (Get-Content -Raw $destino) -replace "`r`n", "`n" } else { $null }
+    if ($a -ne $b) {
+        New-Item -ItemType Directory -Force (Split-Path $destino) | Out-Null
+        Copy-Item $origem $destino -Force
+        Write-Output "[OK] motor sincronizado: $(Split-Path -Leaf $destino)"
+    }
+}
+foreach ($g in Get-ChildItem "$GlobalClaude\agents\geradores" -Filter '*.md') {
+    Sync-SeDivergir $g.FullName (Join-Path $PSScriptRoot "agents\$($g.Name)")
+}
+foreach ($sub in 'references', 'assets') {
+    Get-ChildItem "$GlobalClaude\skills\criar-sistema\$sub" -File -Recurse |
+        Where-Object { $_.FullName -notmatch '__pycache__' } |
+        ForEach-Object {
+            $rel = $_.FullName.Substring("$GlobalClaude\skills\criar-sistema\".Length)
+            Sync-SeDivergir $_.FullName (Join-Path $PSScriptRoot "skills\criar-sistema\$rel")
+        }
+}
+$skillGlobal = Get-Item "$GlobalClaude\skills\criar-sistema\SKILL.md"
+$skillPlugin = Get-Item (Join-Path $PSScriptRoot 'skills\criar-sistema\SKILL.md')
+if ($skillGlobal.LastWriteTime -gt $skillPlugin.LastWriteTime) {
+    Write-Output "[AVISO] SKILL.md global do criar-sistema mudou depois da versao adaptada do plugin - readaptar manualmente."
+}
+
 # 7. Varredura final de segredos (defesa em profundidade)
 $suspeitos = Get-ChildItem $Scaffold -Recurse -File |
     Where-Object { $_.Name -match 'credential|\.env$|sessao.*\.json|pje_session|\.har$' }
