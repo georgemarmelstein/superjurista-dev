@@ -146,7 +146,12 @@ def _escape_xml(texto: str) -> str:
 
 
 def _resolver_orgaos(orgaos: Optional[List[str]]) -> List[str]:
-    """Resolve lista de orgaos, expandindo grupos se necessario."""
+    """Resolve lista de orgaos, expandindo grupos e normalizando siglas.
+
+    Armadilha (auditoria 11/07/2026): o BNP usa TRF01-TRF06 / TRT01-TRT24,
+    mas o resto do ecossistema fala "TRF5" — sigla desconhecida ia crua para
+    a API e voltava VAZIO SILENCIOSO (= SEM_PRECEDENTE falso). Normaliza
+    TRF5->TRF05 e valida contra TODOS_ORGAOS, avisando no resultado."""
     if not orgaos:
         return TODOS_ORGAOS
 
@@ -155,8 +160,20 @@ def _resolver_orgaos(orgaos: Optional[List[str]]) -> List[str]:
         chave = o.lower()
         if chave in GRUPOS_ORGAOS:
             resultado.extend(GRUPOS_ORGAOS[chave])
-        else:
-            resultado.append(o.upper())
+            continue
+        sigla = o.upper().strip()
+        # TRF5 -> TRF05, TRT3 -> TRT03 (digito unico vira zero-padded)
+        m = re.fullmatch(r"(TRF|TRT)(\d)", sigla)
+        if m:
+            sigla = f"{m.group(1)}0{m.group(2)}"
+        resultado.append(sigla)
+    desconhecidas = [s for s in resultado if s not in TODOS_ORGAOS]
+    if desconhecidas:
+        raise ValueError(
+            "Sigla(s) de tribunal desconhecida(s) no BNP: "
+            f"{', '.join(desconhecidas)}. Use as siglas de listar_filtros_bnp "
+            "(ex.: TRF01-TRF06) — sigla errada retornaria vazio silencioso."
+        )
     return resultado
 
 
@@ -289,7 +306,9 @@ class BuscaInput(BaseModel):
             "RR (Recurso Repetitivo), IAC, IRDR, IRR, SIRDR, CT, PUIL, OJ, "
             "ADI, ADC, ADO, ADPF (controle concentrado do STF), "
             "PN, NT (Nota Tecnica), NTA, ENU, RC. "
-            "Vazio = todas as especies."
+            "Vazio = todas as especies. ATENCAO: a API exige lista explicita — "
+            "especie fora da lista passada fica INVISIVEL EM SILENCIO (nao ha "
+            "aviso de omissao). Na duvida, deixe vazio e filtre depois."
         )
     )
     pagina: int = Field(

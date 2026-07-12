@@ -50,7 +50,7 @@ allowed-tools: Read Task Bash TodoWrite
     | Agent | Capacidade | Arquivo |
     |-------|------------|---------|
     | pesquisador-bnp | Precedentes vinculantes STF/STJ | .claude/agents/pesquisa/pesquisador-bnp.md |
-    | pesquisador-cjf | Jurisprudência TRFs (panorama nacional) | .claude/agents/pesquisa/pesquisador-cjf.md |
+    | pesquisador-cjf | Jurisprudência regional TRF1/TRF3/TRF4 (radar de bases vivas) | .claude/agents/pesquisa/pesquisador-cjf.md |
     | pesquisador-julia | Jurisprudência TRF5 (por turma) | .claude/agents/pesquisa/pesquisador-julia.md |
     | pesquisador-stj | Jurisprudência STJ (repetitivos, súmulas, dominante) | .claude/agents/pesquisa/pesquisador-stj.md |
     | pesquisador-tnu | Jurisprudência TNU (representativos, uniformização JEFs) | .claude/agents/pesquisa/pesquisador-tnu.md |
@@ -163,8 +163,9 @@ allowed-tools: Read Task Bash TodoWrite
       Variações por fonte (mesmo invólucro, trocando agente, arquivos e lembrete de sintaxe):
       - CJF → .claude/agents/pesquisa/pesquisador-cjf.md; $ID-pesquisa-cjf.md; fontes-cjf.json;
         abre "# Pesquisa CJF", fecha "Pesquisa CJF concluída.".
-        Sintaxe CJF: E OU NAO ADJ PROX (MAIÚSCULO); pesquise em todos os TRFs; identifique
-        divergências regionais.
+        Sintaxe CJF: E OU NAO ADJ PROX (MAIÚSCULO); pesquise APENAS TRF1, TRF3, TRF4
+        (tribunais="TRF1,TRF3,TRF4" — únicas bases vivas do CJF; STF/STJ/TRF5 têm fontes
+        próprias); identifique divergências regionais.
       - JULIA → .claude/agents/pesquisa/pesquisador-julia.md; $ID-pesquisa-julia.md; fontes-julia.json;
         abre "# Pesquisa JULIA", fecha "Pesquisa JULIA concluída.".
         Sintaxe JULIA: e ou nao adj prox $ (minúsculo); analise por turma; verifique IRDRs

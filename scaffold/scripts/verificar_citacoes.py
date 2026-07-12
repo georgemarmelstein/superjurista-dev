@@ -12,13 +12,26 @@ com >= LIMIAR chars normalizados deve constar do corpus. Aspas curtas
 (expressões idiomáticas) são ignoradas.
 
 Uso:
-  python scripts/verificar_citacoes.py <workspace> [--id N] [--doc SUFIXO_OU_CAMINHO] [--limiar 60]
+  python scripts/verificar_citacoes.py <workspace> [--id N] [--doc SUFIXO_OU_CAMINHO]
+      [--limiar 60] [--ignorar-apos MARCADOR]
       -> exit 0: todas as citações conferem; 1: alguma não confere; 2: erro de uso
 
 LIMIAR default 60 (calibrado contra fundamentações reais — ver Tarefa 3 do plano
 2026-07-11). --doc aceita sufixo ("-sentenca.md") ou caminho completo de minuta.
 ATENÇÃO: sufixo começa com hífen — usar a forma --doc=-sentenca.md (com "=");
 argparse rejeita "--doc -sentenca.md" com valor separado por espaço.
+
+--ignorar-apos MARCADOR trunca o documento na primeira linha de HEADING
+Markdown (linha que começa com '#') cujo conteúdo (normalizado de acento/caixa)
+contém o marcador: citações a partir dessa linha ficam FORA do regime. A
+truncagem é por LINHA inteira — determinística e imune aos deslocamentos de
+posição que a normalização causaria num corte por índice — e SÓ em heading:
+menção ao marcador em texto corrido (ex.: num sumário executivo antes do
+corpo) não trunca. Motivação (calibração T3, 11/07/2026): a minuta-robustecida
+AUTO-CITA trechos da própria minuta na seção "## Log de Alterações" (26 falsos
+positivos num documento real); no re-gate final do pipeline de revisão usa-se
+--ignorar-apos "log de alterações". Um [AVISO] no output registra o marcador e
+a linha do corte (ou a ausência do marcador).
 
 Registro de calibração (2026-07-11, corpus = só autos, sem fontes.json):
   9 documentos reais de data/sentenca — fundamentações 0005144-15, 0053258-19,
@@ -77,6 +90,21 @@ def extrair_citacoes(texto):
         yield (m.group(1) or m.group(2)), m.start()
 
 
+def truncar_apos_marcador(texto, marcador):
+    """Corta o texto na primeira linha de HEADING Markdown (começa com '#')
+    cujo conteúdo normalizado contém o marcador normalizado. Retorna
+    (texto_truncado, nº da linha do corte | None). Só headings contam: menção
+    ao marcador em texto corrido (ex.: num sumário executivo antes do corpo)
+    NÃO trunca — truncar ali faria o gate pular o corpo silenciosamente."""
+    alvo = _norm(marcador)
+    if alvo:
+        linhas = texto.splitlines(keepends=True)
+        for i, linha in enumerate(linhas):
+            if linha.lstrip().startswith("#") and alvo in _norm(linha):
+                return "".join(linhas[:i]), i + 1
+    return texto, None
+
+
 def verificar(doc_texto, corpus, limiar):
     """Lista de (trecho_original, fragmento_reprovado|None). Vazia = tudo OK."""
     problemas, conferidas = [], 0
@@ -104,6 +132,10 @@ def main():
     ap.add_argument("--doc", default="-fundamentacao.md",
                     help="sufixo do documento (default -fundamentacao.md) ou caminho")
     ap.add_argument("--limiar", type=int, default=LIMIAR_DEFAULT)
+    ap.add_argument("--ignorar-apos", dest="ignorar_apos", metavar="MARCADOR",
+                    help="trunca o documento na primeira linha de HEADING ('#'...) que "
+                         "contém o marcador (normalizado de acento/caixa); citações após "
+                         "essa linha ficam fora do regime (ex.: 'log de alterações')")
     a = ap.parse_args()
 
     if not os.path.isdir(a.workspace):
@@ -121,6 +153,12 @@ def main():
 
     corpus, avisos = carregar_corpus(a.workspace, ident)
     texto = open(doc, encoding="utf-8").read()
+    if a.ignorar_apos:
+        texto, linha_corte = truncar_apos_marcador(texto, a.ignorar_apos)
+        if linha_corte:
+            avisos.append(f"documento truncado no marcador {a.ignorar_apos!r} (linha {linha_corte})")
+        else:
+            avisos.append(f"marcador {a.ignorar_apos!r} não encontrado — documento inteiro examinado")
     problemas, conferidas = verificar(texto, corpus, a.limiar)
 
     print(f"[INICIO] {os.path.basename(doc)} -> {conferidas} citação(ões) no regime verbatim")
