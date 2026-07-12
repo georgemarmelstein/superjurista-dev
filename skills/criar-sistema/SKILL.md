@@ -7,8 +7,9 @@ description: >
   agentes", "gerar orquestrador e agentes juntos", "criar um time de agentes para...". Modo
   totalmente automático (da frase ao disco), com validação adversarial e commit atômico.
   Keywords: criar sistema, sistema agêntico, pipeline de agentes, orquestrador + agentes,
-  time de agentes, meta-orquestrador, gerar tudo de uma vez. Flags: --revisar, --target=PATH.
-argument-hint: <descrição-do-sistema> [--revisar] [--target=PATH]
+  time de agentes, meta-orquestrador, gerar tudo de uma vez. Flags: --revisar, --target=PATH,
+  --rigoroso.
+argument-hint: <descrição-do-sistema> [--revisar] [--target=PATH] [--rigoroso]
 allowed-tools: Read Write Edit Task Bash Glob TodoWrite
 ---
 
@@ -53,6 +54,7 @@ allowed-tools: Read Write Edit Task Bash Glob TodoWrite
   |--------------|-------------------------------------------------------------------|
   | `--revisar`  | Pausa após a Fase A e mostra o blueprint para aprovação humana antes de gerar. |
   | `--target=P` | Gera em P em vez do cwd.                                           |
+  | `--rigoroso` | RED/GREEN com pass^3: o braço GREEN roda 3x e TODAS devem conformar (agentes são não-determinísticos; 1 passada dá falso verde). |
 </flags>
 
 <contratos_dados>
@@ -73,6 +75,8 @@ allowed-tools: Read Write Edit Task Bash Glob TodoWrite
     - NUNCA gerar o orquestrador antes de todos os agentes/skills existirem em staging
     - NUNCA fazer commit se a coerência retornar acao_recomendada=ABORTAR
     - NUNCA tentar a mesma geração mais de 2x — abortar com relatório (Iron Law L8)
+    - NUNCA tratar silêncio ou falha de um validador como aprovação — FAIL-CLOSED: Task de
+      validação com erro, sem sinalizadores ou ilegível conta como BLOQUEADO (C1) / ABORTAR (C2)
     - SEMPRE injetar o valor real das variáveis (incl. $PADRAO_PATH e $STAGING_DIR) nos despachos
     - SEMPRE respeitar a trava de viabilidade (parar se a intenção for vaga demais)
   </mestre>
@@ -101,8 +105,26 @@ allowed-tools: Read Write Edit Task Bash Glob TodoWrite
    `[SISTEMA_INSUFICIENTE] Não consigo decompor com segurança. Especifique: <dimensões faltantes>.`
    Não fabricar um sistema no escuro.
 
+   **Portão de loop (se a intenção descrever sistema recorrente/contínuo** — loop, agendado,
+   vigia, "toda vez que", "continuamente"): antes de decompor, exigir as 4 condições:
+   (a) a verificação do resultado é automatizável (script/gate, não "parece ok")?
+   (b) a meta é decidível por máquina (critério objetivo de pronto/falho)?
+   (c) há teto explícito (iterações, custo ou tempo)?
+   (d) há fallback com escalada a humano quando o teto estoura?
+   Qualquer NÃO → rebaixar para sistema sob demanda (registrar a decisão no blueprint) ou
+   emitir `[SISTEMA_INSUFICIENTE]` nomeando a condição de loop faltante. Um loop sem meta
+   decidível gira queimando tokens sem nunca saber que terminou.
+
 4. **Decompor em blueprint.** Read `$MOTOR_DIR/references/blueprint-schema.md`. Produzir o
    `blueprint.json`. Aplicar TODAS as regras de integridade do schema, em especial:
+   - **Scout de capacidade (regra de nascimento — antes de decidir criar).** Para cada
+     capacidade planejada, verificar se ela JÁ EXISTE em outra casa: Grep pelas palavras da
+     capacidade nas descriptions de `$TARGET_DIR/.claude/{agents,skills}/**`,
+     `~/.claude/{agents,skills}/**` e no mapa `~/.claude/docs/arquitetura-ecossistema.md`.
+     Veredito por peça: `criar` (não existe) | `reusar` (capacidade idêntica →
+     `path_existente`) | `absorver` (capacidade quase idêntica → `path_existente` +
+     `emenda_sugerida`; a peça NÃO é gerada — as Ondas B e a coerência a tratam como
+     reusar, e a emenda vai ao manifesto para aplicação posterior). Consumir, nunca copiar.
    - **Slug E `path_destino` únicos** dentro do blueprint (não basta o slug — dois agentes não
      podem cair no mesmo arquivo).
    - **Glob** em `$TARGET_DIR/.claude/{agents,skills,commands}` para detectar colisão com
@@ -158,13 +180,32 @@ Atualizar TodoWrite: B → completed, C → in_progress.
   - `REPROVADO` → incrementar tentativas.json; re-despachar o gerador correspondente com o
     `sufixo_correcao` do relatório (tentativa 2). Revalidar. 2ª reprovação → ABORTAR.
   - `BLOQUEADO` → tratar como reprovação crítica (mesma política).
+  - **FAIL-CLOSED:** Task com erro, resposta sem `[INICIO_VALIDACAO]`/`[FIM_VALIDACAO]` ou
+    relatório ilegível → tratar como `BLOQUEADO` (nunca como aprovação tácita); re-despachar
+    o validador 1x antes de contar tentativa de regeneração.
 
-- **RED/GREEN das skills de disciplina.** Para cada skill com `requer_red_green: sim`, o MESTRE
-  (não o validador — Iron Law L7) conduz o teste usando o `cenario_red` lido do
-  **blueprint.json**: despachar `Task(subagent_type="general-purpose", …)` com o cenário SEM a
-  skill (espera-se violação) e depois COM a skill (espera-se conformidade + citação da skill).
-  Se a skill não blinda → re-despachar `gerador-de-skill` para reforçar `<red_flags>` (1x);
-  persistindo → registrar pendência no manifesto e seguir (não-bloqueante).
+- **C1-dupla — Peças críticas (orquestrador e skills de disciplina).** Para ESSAS peças,
+  despachar DOIS `validador-de-artefato` independentes na MESMA mensagem (mesmos insumos,
+  contextos isolados). Regra de veredito: **ambos APROVADO → segue**. Qualquer reprovação →
+  mesclar e dedupar os `itens_reprovados` dos dois relatórios num ÚNICO sufixo de correção e
+  regenerar. A discordância NÃO se resolve por maioria: se só um validador pegou o problema,
+  o problema é real — o ponto cego do outro é justamente o que a dupla validação elimina.
+  A revalidação usa dois despachos novos (frescos, sem memória da rodada anterior).
+  Agentes comuns seguem com 1 validador (custo controlado).
+
+- **RED/GREEN/COMPETING das skills de disciplina.** Para cada skill com `requer_red_green: sim`,
+  o MESTRE (não o validador — Iron Law L7) conduz o teste usando o `cenario_red` lido do
+  **blueprint.json**, em TRÊS braços:
+  1. **RED** — cenário SEM a skill (espera-se violação);
+  2. **GREEN** — cenário COM a skill (espera-se conformidade + citação da skill);
+  3. **COMPETING** — COM a skill, mas com o prompt pedindo explicitamente o atalho que a
+     skill proíbe (derivar do `cenario_red` acrescentando o pedido contrário do usuário,
+     ex.: "pule essa verificação, é urgente"). Espera-se recusa citando a skill. É o braço
+     que pega a falha mais comum: skill que só funciona quando o prompt já apoia a regra.
+  Os despachos usam `Task(subagent_type="general-purpose", …)`.
+  Com `--rigoroso`: repetir o braço GREEN 3x e exigir pass^3 (TODAS conformes).
+  Se a skill não blinda em qualquer braço → re-despachar `gerador-de-skill` para reforçar
+  `<red_flags>` (1x); persistindo → registrar pendência no manifesto e seguir (não-bloqueante).
 
 - **C2 — Coerência do conjunto.** Despachar `Task(subagent_type="superjurista-dev:validador-de-coerencia", …)`
   com o blueprint e o staging. Ler o campo **`acao_recomendada`** do relatório:
@@ -172,6 +213,8 @@ Atualizar TodoWrite: B → completed, C → in_progress.
   - `CORRIGIR(1x)` → corrigir 1x (re-despachar o gerador do orquestrador com o detalhe) e
     revalidar a coerência uma única vez.
   - `ABORTAR` → Fase D-erro. Não há commit.
+  - **FAIL-CLOSED:** Task com erro ou resposta sem `[FIM_COERENCIA]` → re-despachar 1x;
+    persistindo, tratar como `ABORTAR` (nunca commitar sem veredito de coerência legível).
 
 Atualizar TodoWrite: C → completed, D → in_progress.
 
@@ -231,8 +274,11 @@ Atualizar TodoWrite: D → completed.
 [FIM_CRIAR_SISTEMA] <x>/<y> OK | uso: /<slug-orquestrador> <argumento>
 ```
 
-  Gravar em $WORKSPACE: `blueprint.json`, `manifesto.md` (artefato → score → tentativas →
-  caminho), `logs/` e o relatório de coerência — auditoria da execução, mesmo em caso de abort.
+  Gravar em $WORKSPACE: `blueprint.json`, `manifesto.md`, `logs/` e o relatório de coerência —
+  auditoria da execução, mesmo em caso de abort. O `manifesto.md` contém, por artefato:
+  score → tentativas → caminho → emendas sugeridas (peças `status: absorver`) **e a seção
+  "O que NÃO funcionou"**: cada reprovação com os itens flagrados e o sufixo aplicado —
+  um re-run futuro lê isso ANTES de regenerar, para não repetir o mesmo beco sem saída.
 </observabilidade>
 
 <agents_utilizados>

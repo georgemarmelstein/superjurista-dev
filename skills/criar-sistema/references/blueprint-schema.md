@@ -50,8 +50,9 @@ não o JSON cru.
       "modelo": "opus | sonnet | haiku",
       "cor": "yellow | green | red | blue",
       "path_destino": ".claude/agents/<categoria>/<slug>.md",
-      "status": "criar | reusar",
+      "status": "criar | reusar | absorver",
       "path_existente": null,
+      "emenda_sugerida": null,
       "extensoes_dominio": ["hierarquia_de_autoridade", "ecos"]
     }
   ],
@@ -65,7 +66,9 @@ não o JSON cru.
       "executa_scripts": false,
       "cenario_red": "Cenário de pressão p/ o teste RED (só se tipo=disciplina)",
       "path_destino": ".claude/skills/<slug>/",
-      "status": "criar | reusar"
+      "status": "criar | reusar | absorver",
+      "path_existente": null,
+      "emenda_sugerida": null
     }
   ],
 
@@ -125,9 +128,12 @@ não o JSON cru.
   espera como entrada. Na v3.0 também viram as âncoras `inicio`/`fim` do `ETAPAS` do gate
   `verificar_<sistema>.py` (o sufixo do arquivo vem de `orquestrador.fases[].saida`; `contem`
   e `minimo` são inferidos pelo `gerador-de-orquestrador`, default `minimo=500`).
-- **`agentes[].status`** distingue `criar` (gerar agora) de `reusar` (agente já existe em
-  `path_existente` — só registrar como dependência, não regerar). Resolve colisão de nomes
-  reaproveitando capacidade idêntica em vez de duplicar.
+- **`agentes[].status`** distingue `criar` (gerar agora), `reusar` (agente já existe em
+  `path_existente` — só registrar como dependência, não regerar) e `absorver` (capacidade
+  QUASE idêntica já existe em `path_existente`: não gerar peça nova; o pipeline trata como
+  `reusar` e a `emenda_sugerida` — uma frase dizendo o que acrescentar ao artefato existente —
+  vai ao manifesto para aplicação posterior, fora do commit atômico). Resolve colisão de
+  capacidade reaproveitando/emendando em vez de duplicar (regra de nascimento).
 - **`dependencias.orquestrador_depende_de`** determina a ordem de geração: a Fase B só gera
   o orquestrador depois que todos os slugs aqui listados existirem (no staging se status:criar,
   no target se status:reusar).
@@ -142,6 +148,11 @@ não o JSON cru.
 1. Todo `slug` é único dentro do blueprint E não colide com artefato existente no
    `target_dir` (Glob). Em colisão: prefixar com `nome_sistema` ou marcar `status: reusar`
    se a capacidade for idêntica.
+1-bis. **Scout de capacidade (regra de nascimento):** antes de marcar qualquer peça como
+   `criar`, buscar a capacidade nas descriptions dos artefatos existentes (target, global e
+   mapa do ecossistema). Capacidade idêntica → `reusar`; quase idêntica → `absorver` com
+   `path_existente` + `emenda_sugerida`. Toda peça `absorver` DEVE ter ambos os campos
+   preenchidos (sem eles a coerência não resolve a referência).
 2. Toda `capacidade` de agente tem **um** verbo principal (atomicidade — L2). Capacidade
    com verbos conjugados por "e" é sinal de agente não-atômico → subdividir.
 3. Todo `agente_slug` referenciado em `orquestrador.fases` existe na lista `agentes`.

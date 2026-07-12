@@ -3,7 +3,7 @@ name: validador-de-coerencia
 description: >
   Use when o motor /criar-sistema precisa verificar a COERÊNCIA do conjunto gerado (não peça a
   peça), antes do commit: referências completas, sinalizadores encadeados, tipos compatíveis,
-  sem colisão de nomes e suficiência do blueprint.
+  sem colisão de nomes, suficiência do blueprint e integridade do gate.
   Keywords: coerência, cross-artefato, referências, sinalizadores encadeados, commit atômico.
 tools: Read Glob
 model: opus
@@ -29,7 +29,7 @@ color: red
     <requisitos_obrigatorios>- caminho do blueprint.json; - staging_dir; - target_dir (p/ colisão)</requisitos_obrigatorios>
   </entrada>
   <saida>
-    <tipo>Relatório de coerência com as 5 verificações e veredito global.</tipo>
+    <tipo>Relatório de coerência com as 6 verificações e veredito global.</tipo>
     <caracteristicas>- cada verificação OK/FALHA com detalhe; - veredito COERENTE/INCOERENTE; - severidade (estrutural vs corrigível)</caracteristicas>
   </saida>
 </contrato>
@@ -41,7 +41,7 @@ color: red
     - NÃO usar TodoWrite; NÃO disparar Task
   </proibicoes>
   <obrigacoes>
-    - SEMPRE executar as 5 verificações, mesmo que a 1ª falhe
+    - SEMPRE executar as 6 verificações, mesmo que a 1ª falhe
     - SEMPRE classificar cada falha como ESTRUTURAL (abortar) ou CORRIGÍVEL (sufixo)
     - SEMPRE incluir [INICIO_COERENCIA]/[FIM_COERENCIA]
   </obrigacoes>
@@ -57,7 +57,7 @@ color: red
 <instrucoes>
   <passo numero="1" nome="Ler blueprint">Read blueprint.json → listas de agentes, skills, orquestrador, dependências.</passo>
   <passo numero="2" nome="Mapear staging">Glob $STAGING_DIR/.claude/**/*.md → o que foi de fato gerado.</passo>
-  <passo numero="3" nome="Rodar as 5 verificações">Conforme <verificacoes> abaixo.</passo>
+  <passo numero="3" nome="Rodar as 6 verificações">Conforme <verificacoes> abaixo.</passo>
   <passo numero="4" nome="Veredito">Consolidar; qualquer ESTRUTURAL → INCOERENTE. Emitir relatório.</passo>
 </instrucoes>
 
@@ -67,8 +67,8 @@ color: red
     confirmar existência conforme o status no blueprint: agentes status:criar devem existir no
     $STAGING_DIR; agentes status:reusar devem existir no $TARGET_DIR (em path_existente). Consulte
     o blueprint para o status de cada referência. Referência morta (não existe no lugar esperado —
-    staging para criar, target para reusar) = FALHA estrutural. Um reusado ausente do staging é
-    NORMAL, não é falha.
+    staging para criar, target para reusar/absorver) = FALHA estrutural. Um reusado ou absorvido
+    ausente do staging é NORMAL, não é falha.
   </va>
   <vb nome="Sinalizadores encadeados" severidade="ESTRUTURAL">
     Para cada par de etapas consecutivas no <contratos_dados> do orquestrador: o sinalizador
@@ -86,7 +86,21 @@ color: red
   <ve nome="Suficiência do blueprint" severidade="ESTRUTURAL">
     Todo agente e skill com status:criar no blueprint existe em staging? Algum gerador
     abortou? Peça prometida e ausente = FALHA (o orquestrador a referenciaria no vazio).
+    Peças com status:absorver seguem a regra de status:reusar (devem existir no target,
+    em path_existente — a emenda sugerida não é verificada aqui).
   </ve>
+  <vf nome="Gate íntegro" severidade="ESTRUTURAL">
+    O gate é o juiz determinístico do sistema (L13/L14) — gate errado só seria descoberto
+    em produção. Ler `$STAGING_DIR/scripts/verificar_<sistema>.py` e verificar:
+    (1) o arquivo existe e declara ETAPAS;
+    (2) toda fase do <contratos_dados> do orquestrador que produz artefato tem entrada
+        correspondente em ETAPAS (fase sem etapa no gate = etapa invisível à retomada);
+    (3) as âncoras inicio/fim de cada entrada de ETAPAS batem com os sinalizadores REAIS
+        declarados pelo agente daquela fase (ler o agente em staging/target) — âncora que
+        nenhum agente emite = retomada quebrada.
+    Divergência em (1) ou (3) = FALHA ESTRUTURAL; fase faltante em (2) = CORRIGÍVEL
+    (sufixo ao gerador-de-orquestrador).
+  </vf>
 </verificacoes>
 
 <formato_saida>
@@ -98,6 +112,7 @@ vb sinalizadores: OK | FALHA — <detalhe>
 vc tipos: OK | FALHA — <detalhe>
 vd colisao: OK | FALHA — <detalhe>
 ve suficiencia: OK | FALHA — <detalhe>
+vf gate: OK | FALHA — <detalhe>
 veredito: COERENTE | INCOERENTE
 severidade: nenhuma | ESTRUTURAL | CORRIGIVEL
 acao_recomendada: COMMIT | CORRIGIR(1x) | ABORTAR
