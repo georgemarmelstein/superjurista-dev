@@ -372,7 +372,7 @@ description: >
   Ver exemplos reais em:
   - references/exemplo-cjf.md (scraping JSF/AJAX)
   - references/exemplo-jurisdf.md (API REST — serviço descontinuado; padrão continua válido)
-  - references/licoes-de-campo.md (lições dos MCPs reais: TCU, TJSC/eProc, HUDOC e o caso TSE)
+  - references/licoes-de-campo.md (lições dos MCPs reais: TCU, TJSC/eProc, HUDOC, o caso TSE e os trabalhistas TST/Falcão — LER antes de construir)
   - references/template-server.py (template base)
   - references/sintaxe-booleanos.md (guia de descoberta)
 
