@@ -196,5 +196,25 @@ lições 1-8). Mas o produto **superjurista-produto** consome MCPs de precedente
 `src/{index,mcp,ferramentas,<origem>,texto,tipos}.ts` + `wrangler.jsonc` + `deploy.ps1`.
 Template canônico do porte: `origens/pesquisa-tnu`. As Fases 0-2 (recon, endpoints,
 booleanos) são idênticas; muda só a Fase 3 (geração). Ao construir para o produto, ir
-direto ao Worker TS (evita o passo Python→porte). Deploy é gated: token Cloudflare digitado
-oculto no `deploy.bat`; nunca commitar segredo.
+direto ao Worker TS (evita o passo Python→porte). **Deploy (pós-virada 07/2026): agêntico
+via GitHub Actions** — `gh workflow run deploy.yml -f target=origens/<nome>`; o token vive
+no cofre do GitHub (conta da empresa), nunca em disco (`docs/deploy-agentico.md`). **Passo
+que se esquece:** registrar a pasta nova no `ci.yml` (matriz) E no `deploy.yml` (opções de
+target + variável `ORIGENS`) — senão fica fora do CI e do deploy. Verificação pós-deploy
+SEMPRE por `tools/call` (o edge serve `tools/list` stale). O `deploy.bat`/`.ps1` é legado.
+
+## 15. "Sem captcha" ≠ "viável em Worker": anti-abuso por IP bloqueia datacenter (Falcão)
+
+O mapa de viabilidade classifica por captcha/WAF, mas há uma 3ª categoria: **anti-abuso
+por IP** que bloqueia faixas de datacenter. O Falcão (`pesquisa-jt`) NÃO tem captcha e
+funcionou em `wrangler dev` e no recon inicial, mas **em produção o Cloudflare Worker foi
+recusado no PRIMEIRO contato** ("Tentativa invalida de acesso") — o IP de egress do Worker
+é datacenter, e a penalidade é longa (horas) e persistente. Lições:
+
+- **Validar viabilidade a partir de um IP de DATACENTER** (não só do IP residencial do
+  recon): fazer 1 chamada real de um Worker de teste (ou de um proxy cloud) antes de dar
+  "VIÁVEL". O IP residencial pode ter grace period que o datacenter não tem.
+- Se bloquear só o datacenter: mitigações = backoff longo, proxy residencial, ou rota
+  Chrome MCP (real, IP residencial — como o caso TSE/hCaptcha na lição 7).
+- NÃO martelar o endpoint no recon: cada rajada estende a penalidade e contamina o teste
+  de produção depois (o mesmo IP fica sujo por horas).
