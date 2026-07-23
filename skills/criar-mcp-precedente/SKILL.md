@@ -4,8 +4,9 @@ description: >
   Use when creating MCP servers for court jurisprudence searches — Brazilian tribunals
   and international courts (proven on CJF, TCU, TJSC/eProc and HUDOC/ECHR). Focuses on
   scraping techniques (JSF/AJAX, HTML parsing, undocumented JSON APIs) for courts without
-  public REST APIs. Includes automatic boolean syntax discovery and routing: scraping MCP
-  vs mcp-builder (documented REST) vs Chrome-MCP skill (per-request CAPTCHA).
+  public REST APIs. Captures the site's HAR automatically via the capturar-har skill (no
+  manual DevTools export). Includes automatic boolean syntax discovery and routing: scraping
+  MCP vs mcp-builder (documented REST) vs Chrome-MCP skill (per-request CAPTCHA).
   Keywords: mcp tribunal, jurisprudência, scraping, precedentes, criar mcp, corte internacional.
 ---
 
@@ -134,45 +135,57 @@ description: >
   <passo numero="1" nome="Descoberta de endpoints">
     ## Fase 1: Descoberta de Endpoints
 
-    Usar estratégias em ordem de preferência:
+    O contrato da fonte (endpoint, método, headers de auth, payload, formato de
+    resposta) sai de um **HAR + relatório de engenharia reversa**. **NÃO peça mais o
+    HAR ao usuário manualmente** — a captura é automática pela skill `capturar-har`.
+    Estratégias em ordem de preferência:
 
-    ### Estratégia A: Chrome MCP (preferida)
+    ### Estratégia A: capturar o HAR com a skill `capturar-har` (PREFERIDA)
 
-    Se Chrome MCP disponível:
-    1. `mcp__claude-in-chrome__tabs_create_mcp` - criar aba
-    2. `mcp__claude-in-chrome__navigate` - ir para página de busca
-    3. `mcp__claude-in-chrome__read_network_requests` - iniciar captura
-    4. `mcp__claude-in-chrome__javascript_tool` - executar busca de teste
-    5. Analisar requests capturados
+    Consuma a skill **`capturar-har`** (via a ferramenta Skill) — ela dirige o Chrome
+    MCP, captura o **diff da ação-alvo** (`read_network_requests` antes/depois),
+    enriquece o payload/cookies com `javascript_tool` e reconstrói o HAR + análise.
+    Sem export manual do DevTools.
 
-    Extrair:
-    - URL do endpoint
-    - Method (GET/POST)
-    - Headers obrigatórios
-    - Formato do body (JSON, form-urlencoded, multipart)
-    - Tokens/ViewState se houver
+    1. Peça ao usuário só a **URL da busca** e defina a **ação-alvo**: submeter uma
+       busca com um termo comum (ex.: "aposentadoria"). Login, se preciso, é por
+       autofill ou pelo próprio usuário — **nunca digite credencial**.
+    2. Invoque `capturar-har` apontando a URL e a ação. Ela grava em `captura/`:
+       - `captura.har` — HAR 1.2 reconstruído;
+       - `analise.md` — relatório: BASE_URLs, endpoints (JSON/API vs página vs
+         download), o esquema de **autenticação** (cookies onipresentes,
+         `Authorization`/Bearer, headers `X-*`, CSRF/ViewState), os **payloads** das
+         ações de escrita e as requisições que **falharam** (401/403/302→login).
+    3. Leia `captura/analise.md` (o mapa) e `captura/captura.har` (os detalhes:
+       query/body reais, headers, cookies) para extrair o `endpoint_info` abaixo.
 
-    ### Estratégia B: Análise de HAR (fallback)
+    **IMPORTANTE — dumpe TODOS os headers do request 200 (não filtre por nome).** Uma
+    "API-Key" pode ser só um header **estático de app público** (ex.: `token`,
+    `apikey`) embutido no bundle e servido a todo navegador — hardcodável/raspável, NÃO
+    é bloqueio. Um filtro que só procura `key`/`auth`/`x-` PERDE um header chamado
+    literalmente `token` (caso real TJMT: deu 401 até dumpar tudo; era app-key pública).
 
-    Se Chrome MCP indisponível:
-    1. Solicitar arquivo HAR ao usuário:
-       ```
-       "Exporte o HAR via Chrome DevTools:
-       1. Abra F12 > aba Network
-       2. Faça uma busca no site
-       3. Botão direito na lista > Save all as HAR"
-       ```
-    2. Ler arquivo HAR com Read tool
-    3. Filtrar requests POST para endpoints de busca
-    4. Extrair padrões
+    ### Estratégia B: HAR já pronto (atalho)
 
-    ### Estratégia C: WebFetch + Análise HTML (mínimo)
+    Se o usuário **já** tem um `.har` (export do DevTools) ou já rodou `capturar-har`,
+    pule a captura e rode só a análise:
+    ```bash
+    python "<dir da skill capturar-har>/scripts/analisar_har.py" <arquivo>.har --output captura/analise.md
+    ```
+    e leia o relatório. Depois, para os detalhes, parseie o `.har` direto (Python:
+    `json.load`, itere `log.entries`, filtre os não-estáticos, veja query/body/headers).
 
-    Se nenhuma opção anterior:
-    1. WebFetch na URL do tribunal
-    2. Analisar estrutura do formulário (campos, action, hidden fields)
-    3. Inferir endpoint
-    4. Se muito JS-dependente, solicitar HAR
+    ### Estratégia C: sem Chrome MCP nem HAR — WebFetch + HTML (mínimo)
+
+    1. WebFetch na URL do tribunal.
+    2. Analisar o `<form>` (campos, `action`, hidden fields, ViewState) e inferir o
+       endpoint.
+    3. Se for SPA/JS-dependente, o contrato **não** aparece no HTML — peça ao usuário
+       para rodar `capturar-har` numa máquina com Chrome MCP (é o caminho confiável).
+
+    > Dependência: `capturar-har` é a casa da captura (consumir, nunca copiar). Se ela
+    > não estiver instalada, caia para o export manual do DevTools (Estratégia B) ou
+    > uma captura ad-hoc por `mcp__claude-in-chrome__read_network_requests`.
 
     ### Output da Fase 1
 
@@ -484,7 +497,8 @@ description: >
     **Usuário:** Criar MCP para o TCU
 
     **Claude:**
-    1. [Chrome MCP: read_network_requests durante uma busca no portal]
+    1. [Invoca `capturar-har` na URL do portal, ação = submeter uma busca → gera
+       `captura/analise.md` + `captura/captura.har`]
     2. Detectei uma API JSON não documentada (POST retornando JSON puro), com
        três bases distintas: acórdãos, jurisprudência selecionada e normas.
     3. Sem CAPTCHA e sem login → viável para MCP de scraping.
